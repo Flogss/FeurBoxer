@@ -6,15 +6,15 @@ const DB_PATH = path.join(__dirname, 'data', 'db.json');
 
 const DEFAULT_DB = {
   categories: [
-    { id: 'cat-colissimo',    name: 'Colissimo',     icon: '', logoUrl: 'https://logo.clearbit.com/laposte.fr',       color: '#FFCD00', color2: '#003E80', desc: 'Livraison La Poste - Colissimo',     disabled: false },
-    { id: 'cat-chronopost',   name: 'Chronopost',    icon: '', logoUrl: 'https://logo.clearbit.com/chronopost.fr',    color: '#F07800', color2: '#003189', desc: 'Express et international Chronopost', disabled: false },
-    { id: 'cat-dpd',          name: 'DPD',           icon: '', logoUrl: 'https://logo.clearbit.com/dpd.fr',           color: '#DC0032', color2: '#414042', desc: 'Livraison DPD France',               disabled: false },
-    { id: 'cat-ups',          name: 'UPS',           icon: '', logoUrl: 'https://logo.clearbit.com/ups.com',          color: '#351C15', color2: '#FFB500', desc: 'Livraison UPS',                       disabled: false },
-    { id: 'cat-mondialrelay', name: 'Mondial Relay', icon: '', logoUrl: 'https://logo.clearbit.com/mondialrelay.fr',  color: '#E2001A', color2: '#1D1D1B', desc: 'Points relais Mondial Relay',         disabled: false },
-    { id: 'cat-relaiscolis',  name: 'Relais Colis',  icon: '', logoUrl: 'https://logo.clearbit.com/relaiscolis.com', color: '#E4002B', color2: '#F7A800', desc: 'Réseau Relais Colis',                 disabled: false },
-    { id: 'cat-dhl',          name: 'DHL',           icon: '', logoUrl: 'https://logo.clearbit.com/dhl.com',          color: '#D40511', color2: '#FFCC00', desc: 'Livraison DHL Express',               disabled: false },
-    { id: 'cat-gls',          name: 'GLS',           icon: '', logoUrl: 'https://logo.clearbit.com/gls-group.eu',    color: '#009DE0', color2: '#F7A800', desc: 'Livraison GLS',                       disabled: false },
-    { id: 'cat-fedex',        name: 'FedEx',         icon: '', logoUrl: 'https://logo.clearbit.com/fedex.com',        color: '#4D148C', color2: '#FF6600', desc: 'Livraison FedEx',                     disabled: false }
+    { id: 'cat-colissimo',    name: 'Colissimo',     icon: '', logoUrl: '/logo/colissimo1.png',    color: '#FFCD00', color2: '#003E80', desc: 'Livraison La Poste - Colissimo',     disabled: false },
+    { id: 'cat-chronopost',   name: 'Chronopost',    icon: '', logoUrl: '/logo/chronopost1.png',   color: '#F07800', color2: '#003189', desc: 'Express et international Chronopost', disabled: false },
+    { id: 'cat-dpd',          name: 'DPD',           icon: '', logoUrl: '/logo/dpd1.png',          color: '#DC0032', color2: '#414042', desc: 'Livraison DPD France',               disabled: false },
+    { id: 'cat-ups',          name: 'UPS',           icon: '', logoUrl: '/logo/ups1.png',          color: '#351C15', color2: '#FFB500', desc: 'Livraison UPS',                       disabled: false },
+    { id: 'cat-mondialrelay', name: 'Mondial Relay', icon: '', logoUrl: '/logo/mondialr1.png',     color: '#E2001A', color2: '#1D1D1B', desc: 'Points relais Mondial Relay',         disabled: false },
+    { id: 'cat-relaiscolis',  name: 'Relais Colis',  icon: '', logoUrl: '/logo/relaicolis1.png',   color: '#E4002B', color2: '#F7A800', desc: 'Réseau Relais Colis',                 disabled: false },
+    { id: 'cat-dhl',          name: 'DHL',           icon: '', logoUrl: '/logo/dhl1.png',          color: '#D40511', color2: '#FFCC00', desc: 'Livraison DHL Express',               disabled: false },
+    { id: 'cat-gls',          name: 'GLS',           icon: '', logoUrl: '/logo/gls1.png',          color: '#009DE0', color2: '#F7A800', desc: 'Livraison GLS',                       disabled: false },
+    { id: 'cat-fedex',        name: 'FedEx',         icon: '', logoUrl: '/logo/fedex1.png',        color: '#4D148C', color2: '#FF6600', desc: 'Livraison FedEx',                     disabled: false }
   ],
   products: [
     { id: 'p1', catId: 'cat-colissimo',    name: 'Suivi Colissimo',       price: 15,  icon: '📦', desc: 'Numéro de suivi Colissimo valide',              inputType: 'text', inputHint: 'Entrez votre numéro de commande',       active: true, outOfStock: false, discount: 0 },

@@ -45,7 +45,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(2,4,8,0.92);
 .dropdown-btn.danger:hover{background:rgba(247,37,133,0.08);}
 
 /* HERO */
-.hero{padding-top:58px;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 20px 40px;position:relative;overflow:hidden;}
+.hero{padding-top:58px;min-height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 20px 20px;position:relative;overflow:hidden;}
 .hero-orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;animation:orb-float 8s ease-in-out infinite;}
 .hero-orb.o1{width:300px;height:300px;background:rgba(0,212,255,0.12);top:10%;left:-10%;animation-delay:0s;}
 .hero-orb.o2{width:250px;height:250px;background:rgba(155,93,229,0.12);bottom:20%;right:-5%;animation-delay:-3s;}
@@ -73,7 +73,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(2,4,8,0.92);
 .stat-label{font-size:.72rem;color:var(--dim);letter-spacing:1px;margin-top:2px;}
 
 /* SECTIONS */
-.section{padding:60px 16px;max-width:1100px;margin:0 auto;}
+.section{padding:40px 16px;max-width:1100px;margin:0 auto;}
 .section-title{font-family:'Orbitron',sans-serif;font-size:1.4rem;font-weight:700;margin-bottom:6px;letter-spacing:2px;background:linear-gradient(135deg,var(--nb),var(--nv));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .section-sub{color:var(--dim);font-size:.95rem;margin-bottom:32px;}
 .grid-3{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
@@ -173,7 +173,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(2,4,8,0.92);
 .status-pending{background:rgba(255,214,10,0.1);color:var(--no);border:1px solid rgba(255,214,10,0.3);}
 .status-paid{background:rgba(0,212,255,0.1);color:var(--nb);border:1px solid rgba(0,212,255,0.3);}
 .status-confirmed{background:rgba(57,255,20,0.1);color:var(--ng);border:1px solid rgba(57,255,20,0.3);}
-.status-refused{background:rgba(247,37,133,0.1);color:var(--np);border:1px solid rgba(247,37,133,0.3);}
+.status-refused{background:rgba(247,37,133,0.1);color:var(--np);border:1px solid rgba(247,37,133,0.3);}.status-payment_confirmed{background:rgba(57,255,20,0.1);color:var(--ng);border:1px solid rgba(57,255,20,0.3);}.status-delivered{background:rgba(0,212,255,0.15);color:var(--nb);border:2px solid var(--nb);}
 .status-processing{background:rgba(155,93,229,0.1);color:var(--nv);border:1px solid rgba(155,93,229,0.3);}
 .status-waiting_scan{background:rgba(255,214,10,0.08);color:var(--no);border:1px solid rgba(255,214,10,0.25);}
 .status-scanned{background:rgba(0,212,255,0.08);color:var(--nb);border:1px solid rgba(0,212,255,0.25);}
@@ -285,7 +285,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <canvas id="canvas-bg"></canvas>
 
 <nav>
-  <div class="nav-logo">⬡ FEUR BOXING</div>
+  <div class="nav-logo" onclick="showPage('home')" style="cursor:pointer">⬡ FEUR BOXING</div>
   <div class="nav-right" id="nav-right">
     <button class="nav-btn" onclick="showPage('shop')">SHOP</button>
     <button class="nav-btn primary" onclick="openLoginModal()">CONNEXION</button>
@@ -535,8 +535,8 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <div class="modal-sub" id="order-modal-sub"></div>
       <div id="order-input-type-info" style="font-size:.82rem;color:var(--nv);margin-bottom:14px;padding:8px 12px;background:rgba(155,93,229,0.08);border-radius:8px;border-left:3px solid var(--nv)"></div>
       <div class="form-group" id="order-text-group">
-        <label class="form-label">TEXTE / NUMÉRO</label>
-        <textarea id="order-text-input" class="form-textarea" placeholder="Entrez votre texte ou numéro..."></textarea>
+        <label class="form-label">Numéro de suivi</label>
+        <textarea id="order-text-input" class="form-textarea" placeholder="Entrez votre numéro de suivi..."></textarea>
       </div>
       <div class="form-group" id="order-file-group">
         <label class="form-label">FICHIER (PDF / PHOTO)</label>
@@ -559,11 +559,11 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <button class="btn-outline" style="width:100%;margin-top:8px;padding:11px;border-radius:8px;cursor:pointer;background:none;color:var(--dim);border:1px solid var(--border);font-family:'Rajdhani',sans-serif;font-size:.88rem" onclick="orderNextStep(1)">← RETOUR</button>
     </div>
     <div id="order-step3" style="display:none">
-      <div class="modal-title">📸 PREUVE DE PAIEMENT</div>
-      <div class="modal-sub">Uploadez une capture de votre paiement</div>
+      <div class="modal-title">📸 BORDEREAU D'ENVOI</div>
+      <div class="modal-sub">Uploadez votre bordereau d'envoi</div>
       <div class="file-upload-zone" onclick="document.getElementById('proof-file-input').click()" id="proof-drop-zone">
         <div class="upload-icon">📸</div>
-        <div class="upload-text">Cliquez pour uploader la <strong>preuve de paiement</strong></div>
+        <div class="upload-text">Cliquez pour uploader la <strong>bordereau d'envoi</strong></div>
         <div style="font-size:.72rem;color:var(--dim);margin-top:4px">PNG, JPG, PDF</div>
       </div>
       <input type="file" id="proof-file-input" style="display:none" accept=".jpg,.jpeg,.png,.pdf" onchange="handleProofFile(this)">
@@ -688,12 +688,9 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <label class="form-label">CHANGER LE STATUT MANUELLEMENT</label>
       <select id="odet-status" class="form-select" style="width:100%;margin-bottom:10px">
         <option value="pending">En attente de paiement</option>
-        <option value="paid">Paiement envoyé</option>
-        <option value="waiting_scan">En attente de scan</option>
-        <option value="scanned">Scan effectué</option>
-        <option value="processing">En traitement</option>
-        <option value="confirmed">Confirmée / Livrée</option>
-        <option value="refused">Refusée</option>
+        <option value="payment_confirmed">Paiement confirmé (en attente de scan)</option>
+        <option value="delivered">Colis drop ✅</option>
+        <option value="refused">Refusé ❌</option>
       </select>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-glow btn-primary" style="flex:1;min-width:100px;padding:10px;font-size:.72rem" onclick="saveOrderStatus()">💾 APPLIQUER</button>
@@ -869,15 +866,19 @@ function renderHomeCats(){
   const stagger=['stagger-1','stagger-2','stagger-3','stagger-4','stagger-5','stagger-6'];
   el.innerHTML=categories.map((c,i)=>{
     const col=c.color||'#00d4ff', col2=c.color2||'#9b5de5';
-    const logo=c.logoUrl?`<img src="${c.logoUrl}" style="width:42px;height:42px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4))">`:`<span style="font-size:1.4rem">${c.icon||'📦'}</span>`;
-    const disabledOverlay=c.disabled?`<div style="position:absolute;inset:0;background:rgba(220,0,50,0.18);border-radius:16px;display:flex;align-items:center;justify-content:center;border:2px solid #DC0032;backdrop-filter:blur(2px);z-index:2"><span style="font-family:'Orbitron';font-weight:900;color:#ff4466;font-size:.85rem;letter-spacing:2px;text-shadow:0 0 12px #ff4466">🔴 HORS SERVICE</span></div>`:'';
-    return `<div class="glass-card reveal ${stagger[i%6]}" style="position:relative" onclick="${c.disabled?'':` showPage('shop');filterCat('${c.id}')` }">
+    // Logo local PNG
+    const logo=c.logoUrl
+      ? `<img src="${c.logoUrl}" style="width:52px;height:52px;object-fit:contain" onerror="this.style.display='none';this.nextSibling.style.display='block'"><span style="display:none;font-size:1.4rem">${c.icon||'📦'}</span>`
+      : `<span style="font-size:1.4rem">${c.icon||'📦'}</span>`;
+    const disabledOverlay=c.disabled?`<div style="position:absolute;inset:0;background:rgba(220,0,50,0.25);border-radius:16px;display:flex;align-items:center;justify-content:center;z-index:2;backdrop-filter:blur(3px)"><span style="font-family:'Orbitron';font-weight:900;color:#ff4466;font-size:.82rem;letter-spacing:2px;text-shadow:0 0 14px #ff4466;padding:8px 14px;background:rgba(0,0,0,0.5);border-radius:8px;border:1px solid #ff4466">🔴 HORS SERVICE</span></div>`:'';
+    // Neon border avec couleur du transporteur
+    return `<div class="glass-card reveal ${stagger[i%6]}" style="position:relative;border-color:${col}44;transition:border-color .3s,box-shadow .3s" onmouseover="this.style.borderColor='${col}';this.style.boxShadow='0 0 22px ${col}55,inset 0 0 15px ${col}11'" onmouseout="this.style.borderColor='${col}44';this.style.boxShadow='none'" onclick="${c.disabled?'':` showPage('shop');filterCat('${c.id}')` }">
       ${disabledOverlay}
-      <div class="cat-icon" style="background:linear-gradient(135deg,${col}22,${col2}22)">${logo}</div>
-      <div class="cat-title">${c.name}</div>
+      <div class="cat-icon" style="background:${col}18;border:1px solid ${col}33;border-radius:12px;width:52px;height:52px;display:flex;align-items:center;justify-content:center;margin-bottom:14px">${logo}</div>
+      <div class="cat-title" style="color:${col}">${c.name}</div>
       <div class="cat-desc">${c.desc}</div>
       <div class="cat-count">${products.filter(p=>p.catId===c.id&&p.active).length} produit(s)</div>
-      <button class="cat-btn" style="background:linear-gradient(135deg,${col},${col2});color:#fff" ${c.disabled?'disabled':''}>EXPLORER →</button>
+      <button class="cat-btn" style="border:1px solid ${col};color:${col};background:${col}18;margin-top:12px" ${c.disabled?'disabled':''}>EXPLORER →</button>
     </div>`;
   }).join('');
   document.getElementById('stat-cats').textContent=categories.length;
@@ -888,8 +889,13 @@ function renderHomeCats(){
 function renderShopFilters(){
   document.getElementById('shop-cat-filters').innerHTML=
     categories.filter(c=>!c.disabled).map(c=>{
-      const logo=c.logoUrl?`<img src="${c.logoUrl}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px">`:`${c.icon||'📦'} `;
-      return `<button class="nav-btn ${STATE.currentCatFilter===c.id?'primary':''}" onclick="filterCat('${c.id}')">${logo}${c.name}</button>`;
+      const col=c.color||'#00d4ff';
+      const isActive=STATE.currentCatFilter===c.id;
+      const logo=c.logoUrl?`<img src="${c.logoUrl}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:5px" onerror="this.style.display='none'">`:`${c.icon||''} `;
+      const style=isActive
+        ? `background:${col}22;border-color:${col};color:${col};box-shadow:0 0 12px ${col}55`
+        : `border-color:${col}44;color:${col}99`;
+      return `<button class="nav-btn" style="${style}" onclick="filterCat('${c.id}')">${logo}${c.name}</button>`;
     }).join('');
 }
 function filterCat(id){STATE.currentCatFilter=id;renderShop();}
@@ -902,14 +908,17 @@ function renderShop(){
   const catMap={};categories.forEach(c=>catMap[c.id]=c);
   el.innerHTML=filtered.map(p=>{
     const cat=catMap[p.catId]||{};
+    const col=cat.color||'#00d4ff';
     const hasDiscount=p.discount>0&&!p.outOfStock;
     const finalPrice=hasDiscount?Math.round(p.price*(1-p.discount/100)):p.price;
     const badge=p.outOfStock?`<div class="badge-oos">RUPTURE</div>`:hasDiscount?`<div class="badge-disc">-${p.discount}%</div>`:'';
-    const priceTag=hasDiscount?`<div class="product-price-tag discounted">€${finalPrice} <span style="text-decoration:line-through;opacity:.7">€${p.price}</span></div>`:`<div class="product-price-tag">€${p.price}</div>`;
+    const priceTag=hasDiscount?`<div class="product-price-tag discounted">€${finalPrice} <span style="text-decoration:line-through;opacity:.7">€${p.price}</span></div>`:`<div class="product-price-tag" style="background:${col}cc">€${p.price}</div>`;
+    // Logo du transporteur dans le product-img
+    const catLogo=cat.logoUrl?`<img src="${cat.logoUrl}" style="width:36px;height:36px;object-fit:contain;opacity:.55" onerror="this.style.display='none'">`:'';
     return `
-    <div class="product-card${p.outOfStock?' out-of-stock':''}" onclick="${p.outOfStock?'':` openOrderModal('${p.id}')` }">
-      <div class="product-img" style="background:linear-gradient(135deg,rgba(155,93,229,0.12),rgba(0,212,255,0.08))">
-        <span>${p.icon}</span>${priceTag}${badge}
+    <div class="product-card${p.outOfStock?' out-of-stock':''}" style="border-color:${col}33" onmouseover="this.style.borderColor='${col}99';this.style.boxShadow='0 0 16px ${col}44'" onmouseout="this.style.borderColor='${col}33';this.style.boxShadow='none'" onclick="${p.outOfStock?'':` openOrderModal('${p.id}')` }">
+      <div class="product-img" style="background:linear-gradient(135deg,${col}22,${col}08)">
+        ${catLogo}${priceTag}${badge}
       </div>
       <div class="product-body">
         <div class="product-title">${p.name}</div>
@@ -996,7 +1005,7 @@ function goOrderStep(n){
 }
 
 async function submitOrder(){
-  if(!STATE.currentOrder.proofFile){showToast('⚠️ Uploadez une preuve de paiement','error');return;}
+  if(!STATE.currentOrder.proofFile){showToast('⚠️ Uploadez un bordereau d'envoi','error');return;}
   const btn=document.getElementById('submit-order-btn');
   btn.disabled=true;btn.textContent='⏳ ENVOI EN COURS...';
   try{
@@ -1028,10 +1037,10 @@ async function renderOrders(){
     orders=await apiFetch('GET','/orders');
     const myOrders=orders.filter(o=>String(o.userId)===String(STATE.user.id));
     if(!myOrders.length){document.getElementById('orders-list').innerHTML='<div style="text-align:center;padding:50px;color:var(--dim)"><div style="font-size:2.5rem;margin-bottom:14px">📦</div><p>Aucune commande pour l\'instant</p><button class="btn-glow btn-primary" style="margin-top:18px" onclick="showPage(\'shop\')">ALLER AU SHOP</button></div>';return;}
-    const statusLabels={pending:'En attente',paid:'Paiement envoyé',processing:'En traitement',waiting_scan:'Attente scan',scanned:'Scan effectué',confirmed:'Confirmée ✓',refused:'Refusée'};
-    const progress={pending:10,paid:35,processing:55,waiting_scan:70,scanned:85,confirmed:100,refused:0};
+    const statusLabels={pending:'En attente de paiement',payment_confirmed:'Paiement confirmé ✓',delivered:'Colis drop ✅',refused:'Refusé ❌'};
+    const progress={pending:10,payment_confirmed:55,delivered:100,refused:0};
     document.getElementById('orders-list').innerHTML=myOrders.map(o=>{
-      const canRate=o.status==='scanned'&&!o.rating;
+      const canRate=o.status==='delivered'&&!o.rating;
       const rateBtn=canRate?`<button onclick="openRatingModal('${o.id}','${o.productName.replace(/'/g,'')}')" style="margin-top:10px;background:none;border:1px solid rgba(255,214,10,0.3);color:var(--no);border-radius:8px;padding:7px 14px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem;width:100%">⭐ NOTER CETTE COMMANDE</button>`:'';
       const ratingDisplay=o.rating?`<div style="margin-top:6px;font-size:.78rem;color:var(--no)">${'⭐'.repeat(o.rating)} (${o.rating}/5)</div>`:'';
       return `
@@ -1117,7 +1126,7 @@ async function refreshAdminDashboard(){
 async function loadAdminOrders(){
   try{
     orders=await apiFetch('GET','/orders',null,{admin:true});
-    const labels={pending:'En attente',paid:'Payé',processing:'En traitement',waiting_scan:'Attente scan',scanned:'Scan OK',confirmed:'Confirmée',refused:'Refusée'};
+    const labels={pending:'En attente',payment_confirmed:'Paiement confirmé',delivered:'Colis drop ✅',refused:'Refusé ❌'};
     document.getElementById('adm-orders-table').innerHTML=orders.map(o=>`
       <tr>
         <td class="td-id">${o.id}</td>
@@ -1142,12 +1151,12 @@ function openOrderDetail(orderId){
       <div>👤 <strong>${o.userName}</strong>${o.username?' (@'+o.username+')':''}</div>
       <div>🆔 <span style="font-family:'Share Tech Mono',monospace;font-size:.78rem">${o.userId}</span></div>
       <div>💰 €${o.price} — ${(o.payMethod||'').toUpperCase()}</div>
-      <div>📋 Info client : ${o.text||'<em style="color:var(--dim)">(fichier joint — visible à confirmation)</em>'}</div>
+      <div>📋 Numéro de suivi : ${o.text||'<em style="color:var(--dim)">(fichier joint — visible à confirmation)</em>'}</div>
       <div>📅 ${new Date(o.date).toLocaleString('fr-FR')}</div>
       ${o.rating?`<div>⭐ Note : ${'⭐'.repeat(o.rating)}</div>`:''}
     </div>`;
   const files=[];
-  if(o.proofFile)files.push(`<div style="margin-bottom:8px"><a href="/uploads/${o.proofFile}" target="_blank" style="color:var(--nb);font-size:.85rem">📸 Voir la preuve de paiement →</a></div>`);
+  if(o.proofFile)files.push(`<div style="margin-bottom:8px"><a href="/uploads/${o.proofFile}" target="_blank" style="color:var(--nb);font-size:.85rem">📸 Voir le bordereau d'envoi →</a></div>`);
   if(o.orderFile)files.push(`<div><a href="/uploads/${o.orderFile}" target="_blank" style="color:var(--nv);font-size:.85rem">📎 Voir le document client →</a></div>`);
   document.getElementById('odet-files').innerHTML=files.join('');
   openModal('modal-order-detail');
@@ -1164,10 +1173,10 @@ async function saveOrderStatus(){
 function refuseOrder(){document.getElementById('odet-status').value='refused';saveOrderStatus();}
 
 function nextOrderStep(){
-  const flow=['waiting_scan','scanned','processing','confirmed'];
+  const flow=['pending','payment_confirmed','delivered'];
   const cur=document.getElementById('odet-status').value;
   const idx=flow.indexOf(cur);
-  if(idx===-1||idx===flow.length-1){showToast('ℹ️ Déjà au statut final','info');return;}
+  if(idx===-1||idx===flow.length-1){showToast('ℹ️ Commande déjà au statut final','info');return;}
   document.getElementById('odet-status').value=flow[idx+1];
   saveOrderStatus();
 }

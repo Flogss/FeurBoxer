@@ -47,7 +47,7 @@ function startBot() {
       const data = query.data;
       if (data === 'done') { bot.answerCallbackQuery(query.id); return; }
 
-      const actions = { 'confirm_': 'confirmed', 'refuse_': 'refused', 'processing_': 'processing', 'waiting_scan_': 'waiting_scan', 'scanned_': 'scanned' };
+      const actions = { 'payment_confirmed_': 'payment_confirmed', 'refuse_': 'refused', 'delivered_': 'delivered' };
       let action = null, orderId = null;
       for (const [prefix, status] of Object.entries(actions)) {
         if (data.startsWith(prefix)) { action = status; orderId = data.slice(prefix.length); break; }
@@ -60,7 +60,7 @@ function startBot() {
       order.status = action;
       db.updateOrder(order);
 
-      const labels = { confirmed: '✅ CONFIRMÉE', refused: '❌ REFUSÉE', processing: '🔄 EN TRAITEMENT', waiting_scan: '⏳ EN ATTENTE SCAN', scanned: '🔍 SCAN EFFECTUÉ' };
+      const labels = { payment_confirmed: '✅ PAIEMENT CONFIRMÉ', refused: '❌ REFUSÉE', delivered: '📦 COLIS DROP' };
 
       try {
         await bot.editMessageReplyMarkup(
@@ -71,16 +71,13 @@ function startBot() {
 
       // Notifier le client
       const clientMsgs = {
-        confirmed: `✅ *Commande confirmée !*\n\n📦 *${order.productName}*\n💰 €${order.price}\n\nMerci de votre confiance. — FEUR BOXING`,
+        payment_confirmed: `✅ *Paiement confirmé !*\n\n📦 *${order.productName}*\n💰 €${order.price}\n\nVotre colis est en attente de scan. — FEUR BOXING`,
         refused: `❌ *Commande refusée.*\n\n📦 *${order.productName}*\n\nContactez le support : @feurman1`,
-        processing: `🔄 *Commande en cours de traitement.*\n\n📦 *${order.productName}*`,
-        waiting_scan: `⏳ *En attente de scan.*\n\n📦 *${order.productName}*\n\nNous allons scanner votre document.`,
-        scanned: `🔍 *Scan effectué.*\n\n📦 *${order.productName}*\n\nVotre document a été scanné avec succès.`
+        delivered: `📦 *Colis drop !*\n\n📦 *${order.productName}*\n\nVotre colis a été déposé. Merci de votre confiance. — FEUR BOXING`
       };
       try { await bot.sendMessage(order.userId, clientMsgs[action], { parse_mode: 'Markdown' }); } catch(e) {}
 
-      // Envoyer le document/texte client seulement à la confirmation
-      if (action === 'confirmed') {
+      if (action === 'payment_confirmed') {
         await sendClientFileToAdmin(order);
       }
 
@@ -157,7 +154,7 @@ app.post('/api/orders', upload.fields([{ name: 'proof', maxCount: 1 }, { name: '
     price: data.price,
     text: data.text || '',
     payMethod: data.payMethod,
-    status: 'waiting_scan',
+    status: 'pending',
     date: new Date().toISOString(),
     proofFile: req.files?.proof?.[0]?.filename || null,
     orderFile: req.files?.orderFile?.[0]?.filename || null,
@@ -177,13 +174,11 @@ app.post('/api/orders', upload.fields([{ name: 'proof', maxCount: 1 }, { name: '
     const keyboard = {
       inline_keyboard: [
         [
-          { text: '✅ Confirmer', callback_data: 'confirm_' + orderId },
+          { text: '✅ Paiement confirmé', callback_data: 'payment_confirmed_' + orderId },
           { text: '❌ Refuser', callback_data: 'refuse_' + orderId }
         ],
         [
-          { text: '🔄 En traitement', callback_data: 'processing_' + orderId },
-          { text: '⏳ Attente scan', callback_data: 'waiting_scan_' + orderId },
-          { text: '🔍 Scan OK', callback_data: 'scanned_' + orderId }
+          { text: '📦 Colis drop', callback_data: 'delivered_' + orderId }
         ]
       ]
     };
@@ -215,18 +210,16 @@ app.put('/api/orders/:id/status', adminAuth, async (req, res) => {
   db.updateOrder(order);
 
   const clientMsgs = {
-    confirmed: `✅ *Commande confirmée !*\n\n📦 *${order.productName}*\n💰 €${order.price}\n\nMerci de votre confiance. — FEUR BOXING`,
+    payment_confirmed: `✅ *Paiement confirmé !*\n\n📦 *${order.productName}*\n\nVotre colis est en attente de scan. — FEUR BOXING`,
     refused: `❌ *Commande refusée.*\n\n📦 *${order.productName}*\n\nContactez le support : @feurman1`,
-    processing: `🔄 *En cours de traitement.*\n\n📦 *${order.productName}*`,
-    waiting_scan: `⏳ *En attente de scan.*\n\n📦 *${order.productName}*`,
-    scanned: `🔍 *Scan effectué.*\n\n📦 *${order.productName}*`
+    delivered: `📦 *Colis drop !*\n\n📦 *${order.productName}*\n\nVotre colis a été déposé. Merci de votre confiance.`,
   };
 
   if (bot && order.userId && clientMsgs[status]) {
     try { await bot.sendMessage(order.userId, clientMsgs[status], { parse_mode: 'Markdown' }); } catch(e) {}
   }
 
-  if (status === 'confirmed') await sendClientFileToAdmin(order);
+  if (status === 'payment_confirmed') await sendClientFileToAdmin(order);
 
   res.json({ ok: true });
 });
@@ -248,7 +241,7 @@ app.get('/api/members', adminAuth, (req, res) => {
   const orders = db.getOrders();
   const withStats = members.map(m => {
     const mOrders = orders.filter(o => String(o.userId) === String(m.id));
-    const spent = mOrders.filter(o => o.status === 'confirmed').reduce((s, o) => s + o.price, 0);
+    const spent = mOrders.filter(o => o.status === 'delivered').reduce((s, o) => s + o.price, 0);
     return { ...m, ordersCount: mOrders.length, totalSpent: spent, points: Math.floor(spent / 5) };
   });
   res.json(withStats);
@@ -300,9 +293,9 @@ app.put('/api/settings', adminAuth, (req, res) => {
 app.get('/api/stats', adminAuth, (req, res) => {
   const orders = db.getOrders();
   const members = db.getMembers();
-  const revenue = orders.filter(o => o.status === 'confirmed').reduce((s, o) => s + o.price, 0);
+  const revenue = orders.filter(o => o.status === 'delivered').reduce((s, o) => s + o.price, 0);
   const pending = orders.filter(o => o.status === 'paid').length;
-  const confirmed = orders.filter(o => o.status === 'confirmed').length;
+  const confirmed = orders.filter(o => o.status === 'delivered').length;
 
   const ratings = orders.filter(o => o.rating).map(o => o.rating);
   const avgRating = ratings.length ? (ratings.reduce((s, r) => s + r, 0) / ratings.length).toFixed(1) : null;
@@ -321,7 +314,7 @@ app.get('/api/stats', adminAuth, (req, res) => {
     const d = new Date(); d.setDate(d.getDate() - i);
     const key = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
     const dayRev = orders
-      .filter(o => o.status === 'confirmed' && new Date(o.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) === key)
+      .filter(o => o.status === 'delivered' && new Date(o.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) === key)
       .reduce((s, o) => s + o.price, 0);
     revenueByDay.push({ day: key, revenue: dayRev });
   }
