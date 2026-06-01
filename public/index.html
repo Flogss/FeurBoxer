@@ -601,17 +601,41 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 
 <!-- CAT MODAL -->
 <div class="modal-overlay" id="modal-cat">
-  <div class="modal">
+  <div class="modal" style="max-width:520px">
     <button class="modal-close" onclick="closeModal('modal-cat')">✕</button>
     <div class="modal-title" id="cat-modal-title">Nouvelle catégorie</div>
     <input type="hidden" id="cat-edit-id">
+
+    <!-- PRESETS TRANSPORTEURS -->
+    <div class="form-group">
+      <label class="form-label">PRESET TRANSPORTEUR (optionnel)</label>
+      <div id="carrier-presets" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:6px"></div>
+    </div>
+
     <div class="form-group"><label class="form-label">NOM</label><input id="cat-name" class="form-input"></div>
-    <div class="form-group"><label class="form-label">ICÔNE (emoji)</label><input id="cat-icon" class="form-input" maxlength="4"></div>
     <div class="form-group"><label class="form-label">DESCRIPTION</label><textarea id="cat-desc-input" class="form-textarea" rows="2"></textarea></div>
-    <div class="form-group"><label class="form-label">COULEUR</label>
-      <select id="cat-color" class="form-select">
-        <option value="blue">Bleu</option><option value="violet">Violet</option><option value="pink">Rose</option>
-      </select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label class="form-label">COULEUR PRINCIPALE</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="color" id="cat-color-picker" style="width:40px;height:38px;border:none;background:none;cursor:pointer;border-radius:6px">
+          <input id="cat-color" class="form-input" placeholder="#FFCD00" style="flex:1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">COULEUR SECONDAIRE</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="color" id="cat-color2-picker" style="width:40px;height:38px;border:none;background:none;cursor:pointer;border-radius:6px">
+          <input id="cat-color2" class="form-input" placeholder="#003E80" style="flex:1">
+        </div>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">URL DU LOGO (optionnel)</label><input id="cat-logo-url" class="form-input" placeholder="https://logo.clearbit.com/colissimo.fr"></div>
+    <div class="form-group"><label class="form-label">ICÔNE EMOJI (si pas de logo)</label><input id="cat-icon" class="form-input" maxlength="4" placeholder="📦"></div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;color:var(--dim)">
+        <input type="checkbox" id="cat-disabled" style="width:16px;height:16px"> 🔴 TRANSPORTEUR HORS SERVICE
+      </label>
     </div>
     <button class="btn-glow btn-primary" style="width:100%" onclick="saveCat()">💾 SAUVEGARDER</button>
   </div>
@@ -843,14 +867,19 @@ function logout(){STATE.user=null;LS.del('session');updateNavAuth();closeProfile
 function renderHomeCats(){
   const el=document.getElementById('home-cats');
   const stagger=['stagger-1','stagger-2','stagger-3','stagger-4','stagger-5','stagger-6'];
-  el.innerHTML=categories.map((c,i)=>`
-    <div class="glass-card reveal ${stagger[i%6]}" onclick="showPage('shop');filterCat('${c.id}')">
-      <div class="cat-icon">${c.icon}</div>
+  el.innerHTML=categories.map((c,i)=>{
+    const col=c.color||'#00d4ff', col2=c.color2||'#9b5de5';
+    const logo=c.logoUrl?`<img src="${c.logoUrl}" style="width:42px;height:42px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4))">`:`<span style="font-size:1.4rem">${c.icon||'📦'}</span>`;
+    const disabledOverlay=c.disabled?`<div style="position:absolute;inset:0;background:rgba(220,0,50,0.18);border-radius:16px;display:flex;align-items:center;justify-content:center;border:2px solid #DC0032;backdrop-filter:blur(2px);z-index:2"><span style="font-family:'Orbitron';font-weight:900;color:#ff4466;font-size:.85rem;letter-spacing:2px;text-shadow:0 0 12px #ff4466">🔴 HORS SERVICE</span></div>`:'';
+    return `<div class="glass-card reveal ${stagger[i%6]}" style="position:relative" onclick="${c.disabled?'':` showPage('shop');filterCat('${c.id}')` }">
+      ${disabledOverlay}
+      <div class="cat-icon" style="background:linear-gradient(135deg,${col}22,${col2}22)">${logo}</div>
       <div class="cat-title">${c.name}</div>
       <div class="cat-desc">${c.desc}</div>
       <div class="cat-count">${products.filter(p=>p.catId===c.id&&p.active).length} produit(s)</div>
-      <button class="cat-btn cat-btn-${c.color}">EXPLORER →</button>
-    </div>`).join('');
+      <button class="cat-btn" style="background:linear-gradient(135deg,${col},${col2});color:#fff" ${c.disabled?'disabled':''}>EXPLORER →</button>
+    </div>`;
+  }).join('');
   document.getElementById('stat-cats').textContent=categories.length;
   observeReveals();
 }
@@ -858,7 +887,10 @@ function renderHomeCats(){
 // ── SHOP ──
 function renderShopFilters(){
   document.getElementById('shop-cat-filters').innerHTML=
-    categories.map(c=>`<button class="nav-btn ${STATE.currentCatFilter===c.id?'primary':''}" onclick="filterCat('${c.id}')">${c.icon} ${c.name}</button>`).join('');
+    categories.filter(c=>!c.disabled).map(c=>{
+      const logo=c.logoUrl?`<img src="${c.logoUrl}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px">`:`${c.icon||'📦'} `;
+      return `<button class="nav-btn ${STATE.currentCatFilter===c.id?'primary':''}" onclick="filterCat('${c.id}')">${logo}${c.name}</button>`;
+    }).join('');
 }
 function filterCat(id){STATE.currentCatFilter=id;renderShop();}
 
@@ -882,9 +914,9 @@ function renderShop(){
       <div class="product-body">
         <div class="product-title">${p.name}</div>
         <div class="product-desc">${p.desc}</div>
-        <div class="product-meta">
-          <span class="product-type">${cat.name||''}</span>
-          <button class="product-buy" ${p.outOfStock?'disabled':''} onclick="event.stopPropagation();${p.outOfStock?'':` openOrderModal('${p.id}')` }">${p.outOfStock?'INDISPONIBLE':'COMMANDER'}</button>
+        <div>
+          <div class="product-type" style="margin-bottom:7px;display:inline-block">${cat.name||''}</div>
+          <button class="product-buy" style="width:100%;display:block" ${p.outOfStock?'disabled':''} onclick="event.stopPropagation();${p.outOfStock?'':` openOrderModal('${p.id}')` }">${p.outOfStock?'INDISPONIBLE':'COMMANDER'}</button>
         </div>
       </div>
     </div>`;
@@ -1202,33 +1234,98 @@ async function sendMessage(){
 }
 
 function renderAdminCats(){
-  document.getElementById('adm-cats-table').innerHTML=categories.map(c=>`
-    <tr>
-      <td style="font-size:1.2rem">${c.icon}</td>
-      <td>${c.name}</td>
-      <td><span class="tag" style="background:rgba(0,212,255,0.1);color:var(--nb)">${c.color}</span></td>
+  document.getElementById('adm-cats-table').innerHTML=categories.map(c=>{
+    const logo=c.logoUrl?`<img src="${c.logoUrl}" style="width:28px;height:28px;object-fit:contain">`:`<span style="font-size:1.1rem">${c.icon||'📦'}</span>`;
+    const col=c.color||'#00d4ff';
+    return `<tr style="${c.disabled?'opacity:.6':''}">
+      <td>${logo}</td>
+      <td><strong>${c.name}</strong>${c.disabled?` <span style="color:var(--np);font-size:.7rem">HORS SERVICE</span>`:''}</td>
+      <td><div style="width:18px;height:18px;border-radius:4px;background:${col};display:inline-block;border:1px solid rgba(255,255,255,0.2)"></div></td>
       <td>${products.filter(p=>p.catId===c.id).length}</td>
-      <td style="display:flex;gap:6px">
+      <td style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="action-btn" onclick="toggleCatDisabled('${c.id}')">${c.disabled?'✅ Activer':'🔴 Désactiver'}</button>
         <button class="action-btn" onclick="editCat('${c.id}')">✏️</button>
         <button class="action-btn danger" onclick="deleteCat('${c.id}')">🗑</button>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+}
+
+async function toggleCatDisabled(id){
+  const c=categories.find(x=>x.id===id);if(!c)return;
+  c.disabled=!c.disabled;
+  try{await apiFetch('PUT','/categories/'+id,c,{admin:true});renderAdminCats();renderHomeCats();showToast((c.disabled?'🔴 Transporteur désactivé':'✅ Transporteur activé'),'info');}
+  catch(e){showToast('❌ '+e.message,'error');}
+}
+
+const CARRIER_PRESETS=[
+  {name:'Colissimo',color:'#FFCD00',color2:'#003E80',logoUrl:'https://logo.clearbit.com/laposte.fr',desc:'Livraison La Poste - Colissimo'},
+  {name:'Chronopost',color:'#F07800',color2:'#003189',logoUrl:'https://logo.clearbit.com/chronopost.fr',desc:'Express et international Chronopost'},
+  {name:'DPD',color:'#DC0032',color2:'#414042',logoUrl:'https://logo.clearbit.com/dpd.fr',desc:'Livraison DPD France'},
+  {name:'UPS',color:'#351C15',color2:'#FFB500',logoUrl:'https://logo.clearbit.com/ups.com',desc:'Livraison UPS'},
+  {name:'Mondial Relay',color:'#E2001A',color2:'#1D1D1B',logoUrl:'https://logo.clearbit.com/mondialrelay.fr',desc:'Points relais Mondial Relay'},
+  {name:'Relais Colis',color:'#E4002B',color2:'#F7A800',logoUrl:'https://logo.clearbit.com/relaiscolis.com',desc:'Réseau Relais Colis'},
+  {name:'DHL',color:'#D40511',color2:'#FFCC00',logoUrl:'https://logo.clearbit.com/dhl.com',desc:'Livraison DHL Express'},
+  {name:'GLS',color:'#009DE0',color2:'#F7A800',logoUrl:'https://logo.clearbit.com/gls-group.eu',desc:'Livraison GLS'},
+  {name:'FedEx',color:'#4D148C',color2:'#FF6600',logoUrl:'https://logo.clearbit.com/fedex.com',desc:'Livraison FedEx'},
+];
+
+function renderCarrierPresets(){
+  document.getElementById('carrier-presets').innerHTML=CARRIER_PRESETS.map((p,i)=>`
+    <button onclick="applyCarrierPreset(${i})" style="background:linear-gradient(135deg,${p.color},${p.color2});color:#fff;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.7rem;font-weight:700;font-family:'Orbitron',sans-serif;letter-spacing:.5px;display:flex;align-items:center;gap:5px">
+      <img src="${p.logoUrl}" style="width:14px;height:14px;object-fit:contain" onerror="this.style.display='none'">
+      ${p.name}
+    </button>`).join('');
+}
+
+function applyCarrierPreset(idx){
+  const p=CARRIER_PRESETS[idx];
+  document.getElementById('cat-name').value=p.name;
+  document.getElementById('cat-desc-input').value=p.desc;
+  document.getElementById('cat-color').value=p.color;
+  document.getElementById('cat-color2').value=p.color2;
+  document.getElementById('cat-color-picker').value=p.color;
+  document.getElementById('cat-color2-picker').value=p.color2;
+  document.getElementById('cat-logo-url').value=p.logoUrl;
+  document.getElementById('cat-icon').value='';
+}
+
+function syncColorPicker(pickerEl,inputEl){
+  document.getElementById(pickerEl).addEventListener('input',e=>{document.getElementById(inputEl).value=e.target.value;});
+  document.getElementById(inputEl).addEventListener('input',e=>{try{document.getElementById(pickerEl).value=e.target.value;}catch(x){}});
 }
 
 function openCatModal(id=null){
   document.getElementById('cat-edit-id').value=id||'';
   const c=id?categories.find(x=>x.id===id):null;
-  document.getElementById('cat-modal-title').textContent=id?'Modifier catégorie':'Nouvelle catégorie';
+  document.getElementById('cat-modal-title').textContent=id?'Modifier catégorie':'Nouveau transporteur';
   document.getElementById('cat-name').value=c?.name||'';
   document.getElementById('cat-icon').value=c?.icon||'';
   document.getElementById('cat-desc-input').value=c?.desc||'';
-  document.getElementById('cat-color').value=c?.color||'blue';
+  document.getElementById('cat-color').value=c?.color||'#00d4ff';
+  document.getElementById('cat-color2').value=c?.color2||'#9b5de5';
+  document.getElementById('cat-color-picker').value=c?.color||'#00d4ff';
+  document.getElementById('cat-color2-picker').value=c?.color2||'#9b5de5';
+  document.getElementById('cat-logo-url').value=c?.logoUrl||'';
+  document.getElementById('cat-disabled').checked=c?.disabled||false;
+  renderCarrierPresets();
+  syncColorPicker('cat-color-picker','cat-color');
+  syncColorPicker('cat-color2-picker','cat-color2');
   openModal('modal-cat');
 }
 function editCat(id){openCatModal(id);}
+
 async function saveCat(){
   const id=document.getElementById('cat-edit-id').value;
-  const obj={name:document.getElementById('cat-name').value,icon:document.getElementById('cat-icon').value,desc:document.getElementById('cat-desc-input').value,color:document.getElementById('cat-color').value};
+  const obj={
+    name:document.getElementById('cat-name').value,
+    icon:document.getElementById('cat-icon').value,
+    desc:document.getElementById('cat-desc-input').value,
+    color:document.getElementById('cat-color').value,
+    color2:document.getElementById('cat-color2').value,
+    logoUrl:document.getElementById('cat-logo-url').value,
+    disabled:document.getElementById('cat-disabled').checked
+  };
   try{
     if(id){await apiFetch('PUT','/categories/'+id,obj,{admin:true});categories=categories.map(c=>c.id===id?{id,...obj}:c);}
     else{const c=await apiFetch('POST','/categories',obj,{admin:true});categories.push(c);}
