@@ -16,6 +16,8 @@ body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;fo
 .page{display:none;position:relative;z-index:1;min-height:100vh;padding-bottom:30px;}
 .page.active{display:block;animation:page-in .4s ease;}
 @keyframes page-in{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+.step-anim{animation:step-in .35s cubic-bezier(.22,1,.36,1);}
+@keyframes step-in{from{opacity:0;transform:translateX(22px);}to{opacity:1;transform:translateX(0);}}
 
 /* NAV */
 nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(2,4,8,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 16px;height:58px;display:flex;align-items:center;justify-content:space-between;}
@@ -265,7 +267,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 .stagger-1{transition-delay:.05s;} .stagger-2{transition-delay:.12s;} .stagger-3{transition-delay:.18s;} .stagger-4{transition-delay:.24s;} .stagger-5{transition-delay:.30s;} .stagger-6{transition-delay:.36s;}
 
 /* LOGO FOND BLANC pour logos sur fond sombre */
-.carrier-logo{background:#fff;border-radius:8px;padding:4px;object-fit:contain;}
+.carrier-logo{background:transparent;border-radius:8px;object-fit:contain;filter:drop-shadow(0 1px 4px rgba(255,255,255,0.18));}
 
 /* MOBILE */
 @media(max-width:700px){
@@ -1012,7 +1014,9 @@ function orderNextStep(step){
 
 function goOrderStep(n){
   [1,2,3,4].forEach(i=>{
-    document.getElementById('order-step'+i).style.display=i===n?'block':'none';
+    const el=document.getElementById('order-step'+i);
+    el.style.display=i===n?'block':'none';
+    if(i===n){el.classList.remove('step-anim');void el.offsetWidth;el.classList.add('step-anim');}
     const dot=document.getElementById('step'+i+'-dot');
     dot.classList.remove('active','done');
     if(i===n)dot.classList.add('active');else if(i<n)dot.classList.add('done');
@@ -1052,7 +1056,7 @@ async function renderOrders(){
     orders=await apiFetch('GET','/orders');
     const myOrders=orders.filter(o=>String(o.userId)===String(STATE.user.id));
     if(!myOrders.length){document.getElementById('orders-list').innerHTML='<div style="text-align:center;padding:50px;color:var(--dim)"><div style="font-size:2.5rem;margin-bottom:14px">📦</div><p>Aucune commande pour l\'instant</p><button class="btn-glow btn-primary" style="margin-top:18px" onclick="showPage(\'shop\')">ALLER AU SHOP</button></div>';return;}
-    const statusLabels={pending:'En attente de paiement',payment_confirmed:'Paiement confirmé ✓',delivered:'Colis drop ✅',refused:'Refusé ❌'};
+    const statusLabels={pending:'En attente de validation du paiement',payment_confirmed:'Paiement confirmé ✓',delivered:'Colis drop ✅',refused:'Refusé ❌'};
     const progress={pending:10,payment_confirmed:55,delivered:100,refused:0};
     document.getElementById('orders-list').innerHTML=myOrders.map(o=>{
       const canRate=o.status==='delivered'&&!o.rating;
@@ -1121,8 +1125,9 @@ async function refreshAdminDashboard(){
     document.getElementById('adm-confirmed').textContent=s.confirmed;
     document.getElementById('adm-members').textContent=s.membersCount;
     document.getElementById('adm-avg-rating').textContent=s.avgRating?s.avgRating+' ⭐':'—';
-    document.getElementById('stat-orders').textContent=s.total;
-    document.getElementById('stat-rating').textContent=s.avgRating?s.avgRating+'⭐':'—';
+    // Éléments hero optionnels (peuvent ne pas exister)
+    const so=document.getElementById('stat-orders');if(so)so.textContent=s.total;
+    const sr=document.getElementById('stat-rating');if(sr)sr.textContent=s.avgRating?s.avgRating+'⭐':'—';
     // Revenue chart
     if(s.revenueByDay){
       const max=Math.max(...s.revenueByDay.map(d=>d.revenue),1);
