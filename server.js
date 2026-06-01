@@ -24,12 +24,30 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── BOT ──
 let bot;
+let botRetryTimer = null;
+
 function startBot() {
   const settings = db.getSettings();
   if (!settings.botToken) return;
   try {
     if (bot) { try { bot.stopPolling(); } catch(e){} }
-    bot = new TelegramBot(settings.botToken, { polling: true });
+    // Délai de 3s au démarrage pour laisser l'ancienne instance Telegram expirer
+    bot = new TelegramBot(settings.botToken, { polling: { autoStart: false, interval: 2000 } });
+
+    // Gestion d'erreur polling — évite le crash en boucle sur 409
+    bot.on('polling_error', (err) => {
+      if (err.message && err.message.includes('409')) {
+        console.log('⚠️  Conflit 409 détecté — relance du polling dans 10s...');
+        bot.stopPolling().catch(()=>{});
+        if (botRetryTimer) clearTimeout(botRetryTimer);
+        botRetryTimer = setTimeout(() => bot.startPolling(), 10000);
+      } else {
+        console.error('Polling error:', err.message);
+      }
+    });
+
+    // Démarrage différé (laisse l'ancienne instance mourir)
+    setTimeout(() => bot.startPolling(), 3000);
 
     bot.onText(/\/start/, (msg) => {
       const s = db.getSettings();
@@ -333,4 +351,12 @@ app.listen(PORT, () => {
   console.log(`\n🚀 FEUR BOXING → http://localhost:${PORT}`);
   console.log(`🔐 Admin → http://localhost:${PORT}/#admin`);
   console.log(`🗝  MDP par défaut : admin2024\n`);
+});
+
+// Empêche le process de crasher sur erreur non gérée
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException (ignoré):', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection (ignoré):', reason?.message || reason);
 });
