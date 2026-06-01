@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>FEUR BOXING</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --bg: #020408;
+  --bg2: #050b14;
+  --bg3: #0a1628;
+  --card: rgba(10,20,40,0.7);
+  --neon-blue: #00d4ff;
+  --neon-violet: #9b5de5;
+  --neon-pink: #f72585;
+  --neon-green: #39ff14;
+  --neon-gold: #ffd60a;
+  --text: #e0eaff;
+  --text-dim: #7a9cc0;
+  --border: rgba(0,212,255,0.18);
+  --glass: rgba(0,212,255,0.04);
+  --shadow-blue: 0 0 30px rgba(0,212,255,0.3);
+  --shadow-violet: 0 0 30px rgba(155,93,229,0.3);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── CANVAS PARTICLES ── */
+#canvas-bg {
+  position: fixed; top:0; left:0; width:100%; height:100%;
+  z-index:0; pointer-events:none;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--neon-violet); border-radius:2px; }
+
+/* ── PAGES ── */
+.page { display:none; position:relative; z-index:1; min-height:100vh; }
+.page.active { display:block; }
+
+/* ── NAV ── */
+nav {
+  position: fixed; top:0; left:0; right:0; z-index:100;
+  background: rgba(2,4,8,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-logo {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.1rem; font-weight: 900;
+  background: linear-gradient(135deg, var(--neon-blue), var(--neon-violet));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  letter-spacing: 2px;
+}
+.nav-right { display:flex; gap:10px; align-items:center; }
+.nav-btn {
+  background: none; border: 1px solid var(--border);
+  color: var(--text-dim); padding: 6px 14px; border-radius:6px;
+  cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:.85rem;
+  font-weight:600; letter-spacing:1px; transition:.2s;
+}
+.nav-btn:hover { border-color: var(--neon-blue); color: var(--neon-blue); }
+.nav-btn.primary {
+  background: linear-gradient(135deg, var(--neon-blue), var(--neon-violet));
+  border:none; color:#fff;
+}
+.user-avatar {
+  width:32px; height:32px; border-radius:50%;
+  background: linear-gradient(135deg, var(--neon-violet), var(--neon-pink));
+  display:flex; align-items:center; justify-content:center;
+  font-size:.75rem; font-weight:700; cursor:pointer;
+  border: 2px solid var(--neon-violet);
+}
+
+/* ── HERO ── */
+.hero {
+  padding-top: 60px;
+  min-height: 100vh;
+  display: flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; position:relative; overflow:hidden;
+  padding-left:20px; padding-right:20px;
+}
+.hero-badge {
+  display:inline-flex; align-items:center; gap:8px;
+  background: rgba(155,93,229,0.1); border: 1px solid rgba(155,93,229,0.3);
+  padding: 6px 18px; border-radius:50px; font-size:.8rem;
+  color: var(--neon-violet); margin-bottom:30px;
+  font-family:'Share Tech Mono',monospace; letter-spacing:1px;
+}
+.hero-badge::before {
+  content:''; width:8px; height:8px; border-radius:50%;
+  background:var(--neon-green); box-shadow: 0 0 8px var(--neon-green);
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+
+.hero-title {
+  font-family:'Orbitron',sans-serif;
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight:900; line-height:1.05;
+  letter-spacing:4px; margin-bottom:20px;
+}
+.hero-title .line1 {
+  display:block;
+  background: linear-gradient(135deg, #fff 0%, var(--neon-blue) 50%, var(--neon-violet) 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 0 20px rgba(0,212,255,0.4));
+}
+.hero-title .line2 {
+  display:block;
+  background: linear-gradient(135deg, var(--neon-pink) 0%, var(--neon-violet) 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 0 20px rgba(247,37,133,0.4));
+}
+.hero-sub {
+  font-size:1.15rem; color:var(--text-dim); max-width:560px;
+  line-height:1.7; margin-bottom:40px; font-weight:400;
+}
+.hero-cta-row { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; margin-bottom:60px; }
+
+.btn-glow {
+  padding: 14px 32px; border-radius:8px; border:none; cursor:pointer;
+  font-family:'Orbitron',sans-serif; font-size:.8rem; font-weight:700;
+  letter-spacing:2px; transition:.3s; position:relative; overflow:hidden;
+  text-transform:uppercase;
+}
+.btn-glow::after {
+  content:''; position:absolute; inset:-2px; border-radius:10px;
+  background: linear-gradient(135deg, var(--neon-blue), var(--neon-violet), var(--neon-pink));
+  z-index:-1; opacity:0; transition:.3s;
+}
+.btn-glow:hover::after { opacity:.6; filter:blur(8px); }
+.btn-primary {
+  background: linear-gradient(135deg, var(--neon-blue), var(--neon-violet));
+  color:#fff; box-shadow: 0 0 20px rgba(0,212,255,0.4);
+}
+.btn-primary:hover { transform:translateY(-2px); box-shadow: 0 0 35px rgba(0,212,255,0.6); }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.btn-outline:hover { border-color:var(--neon-blue); color:var(--neon-blue); background:rgba(0,212,255,0.05); }
+
+.stats-row {
+  display:flex; gap:40px; flex-wrap:wrap; justify-content:center;
+}
+.stat-item { text-align:center; }
+.stat-num {
+  font-family:'Orbitron',sans-serif; font-size:1.8rem; font-weight:700;
+  background:linear-gradient(135deg,var(--neon-blue),var(--neon-violet));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.stat-label { font-size:.8rem; color:var(--text-dim); letter-spacing:1px; margin-top:2px; }
+
+/* ── SECTION ── */
+.section { padding: 80px 20px; max-width:1100px; margin:0 auto; }
+.section-title {
+  font-family:'Orbitron',sans-serif; font-size:1.6rem; font-weight:700;
+  margin-bottom:8px; letter-spacing:2px;
+  background:linear-gradient(135deg,var(--neon-blue),var(--neon-violet));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.section-sub { color:var(--text-dim); font-size:1rem; margin-bottom:40px; }
+
+/* ── CARDS GRID ── */
+.grid-3 { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:20px; }
+.grid-2 { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:20px; }
+
+/* ── GLASS CARD ── */
+.glass-card {
+  background: var(--card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius:16px; padding:24px;
+  transition:.3s; position:relative; overflow:hidden;
+}
+.glass-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--neon-blue),var(--neon-violet),transparent);
+  opacity:0; transition:.3s;
+}
+.glass-card:hover { transform:translateY(-4px); border-color:rgba(0,212,255,0.3); }
+.glass-card:hover::before { opacity:1; }
+
+/* ── CATEGORY CARD ── */
+.cat-icon {
+  width:50px; height:50px; border-radius:12px; display:flex;
+  align-items:center; justify-content:center; font-size:1.5rem;
+  margin-bottom:16px;
+}
+.cat-title { font-family:'Orbitron',sans-serif; font-size:1rem; font-weight:700; margin-bottom:6px; }
+.cat-desc { color:var(--text-dim); font-size:.9rem; line-height:1.5; margin-bottom:16px; }
+.cat-count { font-size:.8rem; color:var(--text-dim); font-family:'Share Tech Mono',monospace; }
+.cat-btn {
+  width:100%; padding:10px; border-radius:8px; border:none; cursor:pointer;
+  font-family:'Orbitron',sans-serif; font-size:.72rem; font-weight:700;
+  letter-spacing:1px; transition:.3s; margin-top:14px;
+}
+.cat-btn-blue { background:linear-gradient(135deg,var(--neon-blue),#0066cc); color:#fff; }
+.cat-btn-violet { background:linear-gradient(135deg,var(--neon-violet),#5522aa); color:#fff; }
+.cat-btn-pink { background:linear-gradient(135deg,var(--neon-pink),#aa0055); color:#fff; }
+.cat-btn:hover { transform:translateY(-2px); opacity:.9; }
+
+/* ── PRODUCT CARD ── */
+.product-card {
+  background: var(--card); backdrop-filter:blur(20px);
+  border: 1px solid var(--border); border-radius:14px;
+  overflow:hidden; transition:.3s; cursor:pointer; position:relative;
+}
+.product-card:hover { transform:translateY(-4px); border-color:rgba(0,212,255,0.35); }
+.product-img {
+  height:140px; display:flex; align-items:center; justify-content:center;
+  font-size:3rem; position:relative;
+}
+.product-price-tag {
+  position:absolute; top:12px; right:12px;
+  background:linear-gradient(135deg,var(--neon-blue),var(--neon-violet));
+  color:#fff; padding:4px 10px; border-radius:20px;
+  font-family:'Share Tech Mono',monospace; font-size:.8rem; font-weight:700;
+}
+.product-body { padding:16px; }
+.product-title { font-family:'Orbitron',sans-serif; font-size:.9rem; font-weight:700; margin-bottom:6px; }
+.product-desc { color:var(--text-dim); font-size:.85rem; line-height:1.4; margin-bottom:12px; }
+.product-meta { display:flex; justify-content:space-between; align-items:center; }
+.product-type {
+  font-family:'Share Tech Mono',monospace; font-size:.72rem;
+  color:var(--neon-violet); background:rgba(155,93,229,0.1);
+  padding:3px 8px; border-radius:4px;
+}
+.product-buy {
+  background:linear-gradient(135deg,var(--neon-blue),var(--neon-violet));
+  color:#fff; border:none; padding:8px 16px; border-radius:6px;
+  font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.85rem;
+  cursor:pointer; transition:.2s;
+}
+.product-buy:hover { opacity:.85; transform:scale(1.03); }
+
+/* ── FEATURES ── */
+.feature-icon { font-size:2rem; margin-bottom:12px; }
+.feature-title { font-family:'Orbitron',sans-serif; font-size:.9rem; font-weight:700; margin-bottom:8px; color:var(--neon-blue); }
+.feature-desc { color:var(--text-dim); font-size:.9rem; line-height:1.5; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  display:none; position:fixed; inset:0; z-index:200;
+  background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);
+  align-items:center; justify-content:center; padding:20px;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background: linear-gradient(135deg, rgba(5,11,20,0.98), rgba(10,20,40,0.98));
+  border: 1px solid var(--border); border-radius:20px;
+  width:100%; max-width:500px; max-height:90vh; overflow-y:auto;
+  padding:30px; position:relative;
+}
+.modal-close {
+  position:absolute; top:16px; right:16px; background:rgba(255,255,255,0.05);
+  border:1px solid var(--border); color:var(--text-dim); width:32px; height:32px;
+  border-radius:50%; cursor:pointer; font-size:1rem; display:flex;
+  align-items:center; justify-content:center; transition:.2s;
+}
+.modal-close:hover { border-color:var(--neon-pink); color:var(--neon-pink); }
+.modal-title { font-family:'Orbitron',sans-serif; font-size:1.2rem; font-weight:700; margin-bottom:6px; }
+.modal-sub { color:var(--text-dim); font-size:.9rem; margin-bottom:24px; }
+
+/* ── FORM ── */
+.form-group { margin-bottom:18px; }
+.form-label { font-size:.85rem; font-weight:600; color:var(--text-dim); margin-bottom:6px; display:block; letter-spacing:.5px; }
+.form-input, .form-textarea, .form-select {
+  width:100%; padding:12px 16px; border-radius:8px;
+  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  color:var(--text); font-family:'Rajdhani',sans-serif; font-size:1rem;
+  transition:.2s; outline:none;
+}
+.form-input:focus, .form-textarea:focus, .form-select:focus {
+  border-color:var(--neon-blue); box-shadow: 0 0 15px rgba(0,212,255,0.15);
+}
+.form-textarea { min-height:100px; resize:vertical; }
+.form-select option { background:var(--bg3); }
+
+/* ── FILE UPLOAD ── */
+.file-upload-zone {
+  border:2px dashed var(--border); border-radius:10px;
+  padding:30px; text-align:center; cursor:pointer;
+  transition:.2s; position:relative;
+}
+.file-upload-zone:hover { border-color:var(--neon-blue); background:rgba(0,212,255,0.03); }
+.file-upload-zone.has-file { border-color:var(--neon-green); background:rgba(57,255,20,0.04); }
+.upload-icon { font-size:2rem; margin-bottom:8px; }
+.upload-text { color:var(--text-dim); font-size:.9rem; }
+.upload-text strong { color:var(--neon-blue); }
+
+/* ── PAYMENT OPTIONS ── */
+.pay-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+.pay-option {
+  border:2px solid var(--border); border-radius:10px; padding:14px;
+  cursor:pointer; transition:.2s; text-align:center; background:transparent;
+  color:var(--text); font-family:'Rajdhani',sans-serif;
+}
+.pay-option:hover, .pay-option.selected { border-color:var(--neon-violet); background:rgba(155,93,229,0.08); }
+.pay-option.selected { border-color:var(--neon-blue); }
+.pay-logo { font-size:1.5rem; margin-bottom:6px; }
+.pay-name { font-size:.85rem; font-weight:600; }
+.pay-address {
+  font-family:'Share Tech Mono',monospace; font-size:.7rem;
+  color:var(--text-dim); word-break:break-all; margin-top:8px; line-height:1.4;
+  background:rgba(0,0,0,0.3); padding:8px; border-radius:6px;
+}
+.copy-btn {
+  font-size:.72rem; color:var(--neon-blue); cursor:pointer; margin-top:4px;
+  background:none; border:none; font-family:'Rajdhani',sans-serif;
+  font-weight:700; letter-spacing:.5px;
+}
+
+/* ── STEPS INDICATOR ── */
+.steps-row { display:flex; justify-content:center; gap:8px; margin-bottom:28px; }
+.step-dot {
+  width:28px; height:28px; border-radius:50%; border:2px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  font-size:.75rem; font-weight:700; color:var(--text-dim); transition:.3s;
+}
+.step-dot.active { border-color:var(--neon-blue); color:var(--neon-blue); background:rgba(0,212,255,0.1); }
+.step-dot.done { border-color:var(--neon-green); color:var(--neon-green); background:rgba(57,255,20,0.1); }
+.step-line { flex:1; height:2px; background:var(--border); align-self:center; max-width:40px; }
+
+/* ── ORDERS PAGE ── */
+.order-card {
+  background:var(--card); backdrop-filter:blur(20px);
+  border:1px solid var(--border); border-radius:14px; padding:20px;
+  margin-bottom:16px; position:relative;
+}
+.order-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+.order-id { font-family:'Share Tech Mono',monospace; font-size:.8rem; color:var(--text-dim); }
+.order-status {
+  padding:4px 12px; border-radius:20px; font-size:.75rem;
+  font-family:'Share Tech Mono',monospace; font-weight:700; letter-spacing:.5px;
+}
+.status-pending { background:rgba(255,214,10,0.1); color:var(--neon-gold); border:1px solid rgba(255,214,10,0.3); }
+.status-paid { background:rgba(0,212,255,0.1); color:var(--neon-blue); border:1px solid rgba(0,212,255,0.3); }
+.status-confirmed { background:rgba(57,255,20,0.1); color:var(--neon-green); border:1px solid rgba(57,255,20,0.3); }
+.status-refused { background:rgba(247,37,133,0.1); color:var(--neon-pink); border:1px solid rgba(247,37,133,0.3); }
+.status-processing { background:rgba(155,93,229,0.1); color:var(--neon-violet); border:1px solid rgba(155,93,229,0.3); }
+.order-product { font-family:'Orbitron',sans-serif; font-size:.95rem; font-weight:700; margin-bottom:4px; }
+.order-cat { font-size:.85rem; color:var(--text-dim); }
+.order-price { font-family:'Share Tech Mono',monospace; color:var(--neon-green); font-size:1rem; font-weight:700; margin-top:8px; }
+.order-date { font-size:.78rem; color:var(--text-dim); margin-top:4px; }
+.order-progress {
+  margin-top:14px; background:rgba(255,255,255,0.04); border-radius:4px; height:4px; overflow:hidden;
+}
+.order-progress-bar {
+  height:100%; border-radius:4px;
+  background:linear-gradient(90deg,var(--neon-blue),var(--neon-violet));
+  transition: width .5s;
+}
+
+/* ── ADMIN ── */
+.admin-layout { display:grid; grid-template-columns:220px 1fr; min-height:100vh; padding-top:60px; }
+.admin-sidebar {
+  background:rgba(5,11,20,0.95); border-right:1px solid var(--border);
+  padding:24px 0; position:sticky; top:60px; height:calc(100vh - 60px); overflow-y:auto;
+}
+.admin-nav-item {
+  display:flex; align-items:center; gap:12px; padding:12px 20px;
+  color:var(--text-dim); cursor:pointer; transition:.2s; font-size:.9rem;
+  font-weight:600; border-left:3px solid transparent;
+}
+.admin-nav-item:hover, .admin-nav-item.active {
+  color:var(--neon-blue); border-left-color:var(--neon-blue);
+  background:rgba(0,212,255,0.04);
+}
+.admin-content { padding:30px; overflow-y:auto; }
+.admin-section { display:none; }
+.admin-section.active { display:block; }
+
+.admin-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; margin-bottom:30px; }
+.admin-stat-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:12px; padding:20px;
+}
+.admin-stat-val { font-family:'Orbitron',sans-serif; font-size:1.6rem; font-weight:700; }
+.admin-stat-label { font-size:.8rem; color:var(--text-dim); margin-top:4px; }
+
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:.9rem; }
+th { padding:12px 16px; text-align:left; font-size:.75rem; letter-spacing:1px;
+     color:var(--text-dim); border-bottom:1px solid var(--border); font-weight:600; }
+td { padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.04); }
+tr:hover td { background:rgba(255,255,255,0.02); }
+.td-id { font-family:'Share Tech Mono',monospace; font-size:.8rem; color:var(--text-dim); }
+
+/* ── ADMIN EDIT MODAL ── */
+.tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.75rem; font-weight:700; font-family:'Share Tech Mono',monospace; }
+
+/* ── GLOW DIVIDER ── */
+.glow-divider {
+  height:1px; margin:60px 0;
+  background:linear-gradient(90deg,transparent,var(--neon-violet),var(--neon-blue),transparent);
+  opacity:.4;
+}
+
+/* ── TELEGRAM LOGIN SECTION ── */
+.tg-login-box {
+  background: rgba(0,136,204,0.08); border:1px solid rgba(0,136,204,0.25);
+  border-radius:16px; padding:32px; text-align:center; max-width:400px; margin:0 auto;
+}
+.tg-icon { font-size:3rem; margin-bottom:16px; }
+.tg-title { font-family:'Orbitron',sans-serif; font-size:1.1rem; font-weight:700; margin-bottom:8px; color:var(--neon-blue); }
+.tg-desc { color:var(--text-dim); font-size:.9rem; margin-bottom:24px; line-height:1.5; }
+.btn-tg {
+  background:linear-gradient(135deg,#0088cc,#005f8f);
+  color:#fff; border:none; padding:14px 28px; border-radius:10px;
+  font-family:'Orbitron',sans-serif; font-size:.8rem; font-weight:700;
+  letter-spacing:1px; cursor:pointer; transition:.3s; width:100%;
+  box-shadow: 0 0 20px rgba(0,136,204,0.3);
+}
+.btn-tg:hover { transform:translateY(-2px); box-shadow: 0 0 30px rgba(0,136,204,0.5); }
+
+/* ── TOAST ── */
+.toast {
+  position:fixed; bottom:24px; right:24px; z-index:999;
+  background:rgba(10,20,40,0.95); border:1px solid var(--border);
+  border-radius:10px; padding:14px 20px; backdrop-filter:blur(20px);
+  max-width:320px; font-size:.9rem; display:flex; align-items:center; gap:10px;
+  transform:translateY(100px); opacity:0; transition:.3s;
+}
+.toast.show { transform:translateY(0); opacity:1; }
+.toast.success { border-color:var(--neon-green); }
+.toast.error { border-color:var(--neon-pink); }
+.toast.info { border-color:var(--neon-blue); }
+
+/* ── SUPPORT FLOAT ── */
+.support-float {
+  position:fixed; bottom:24px; left:24px; z-index:150;
+  background:linear-gradient(135deg,var(--neon-violet),var(--neon-blue));
+  border:none; border-radius:50px; padding:12px 20px;
+  color:#fff; font-family:'Orbitron',sans-serif; font-size:.7rem;
+  font-weight:700; letter-spacing:1px; cursor:pointer;
+  box-shadow: 0 0 20px rgba(155,93,229,0.4);
+  display:flex; align-items:center; gap:8px; transition:.3s;
+}
+.support-float:hover { transform:scale(1.05); box-shadow: 0 0 30px rgba(155,93,229,0.6); }
+
+/* ── ADMIN PASSWORD ── */
+.admin-lock {
+  display:flex; align-items:center; justify-content:center;
+  min-height:100vh; padding:20px;
+}
+.admin-lock-box {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:20px; padding:40px; text-align:center; max-width:380px; width:100%;
+}
+
+/* ── SCROLLREVEAL ANIM ── */
+.reveal { opacity:0; transform:translateY(30px); transition:.6s; }
+.reveal.visible { opacity:1; transform:translateY(0); }
+
+/* ── MOBILE ── */
+@media(max-width:700px) {
+  .admin-layout { grid-template-columns:1fr; }
+  .admin-sidebar { position:fixed; bottom:0; top:auto; left:0; right:0; height:60px;
+    display:flex; flex-direction:row; padding:0; overflow-x:auto; z-index:99; }
+  .admin-nav-item { padding:10px 14px; border-left:none; border-top:3px solid transparent; flex-direction:column; font-size:.65rem; gap:2px; white-space:nowrap; }
+  .admin-nav-item.active { border-top-color:var(--neon-blue); border-left:none; }
+  .admin-content { padding:16px; padding-bottom:80px; }
+  .pay-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="canvas-bg"></canvas>
+
+<!-- NAV -->
+<nav id="main-nav">
+  <div class="nav-logo">⬡ FEUR BOXING</div>
+  <div class="nav-right" id="nav-right">
+    <button class="nav-btn" onclick="showPage('shop')">SHOP</button>
+    <button class="nav-btn primary" onclick="openLoginModal()" id="nav-login-btn">CONNEXION</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════ HOME PAGE -->
+<div class="page active" id="page-home">
+  <section class="hero">
+    <div class="hero-badge">🔴 SYSTÈME EN LIGNE — ACCÈS AUTORISÉ</div>
+    <h1 class="hero-title">
+      <span class="line1">FEUR</span>
+      <span class="line2">BOXING</span>
+    </h1>
+    <p class="hero-sub">La plateforme de référence pour vos commandes premium. Service discret, rapide et sécurisé. Paiement crypto & virement acceptés.</p>
+    <div class="hero-cta-row">
+      <button class="btn-glow btn-primary" onclick="showPage('shop')">🛒 ACCÉDER AU SHOP</button>
+      <button class="btn-glow btn-outline" onclick="openLoginModal()">⚡ SE CONNECTER</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat-item"><div class="stat-num" id="stat-orders">1,247</div><div class="stat-label">COMMANDES</div></div>
+      <div class="stat-item"><div class="stat-num">99.2%</div><div class="stat-label">SATISFAIT</div></div>
+      <div class="stat-item"><div class="stat-num" id="stat-cats">6</div><div class="stat-label">CATÉGORIES</div></div>
+      <div class="stat-item"><div class="stat-num">24/7</div><div class="stat-label">SUPPORT</div></div>
+    </div>
+  </section>
+
+  <div class="glow-divider"></div>
+
+  <!-- CATEGORIES SECTION -->
+  <div class="section">
+    <p class="section-title reveal">NOS CATÉGORIES</p>
+    <p class="section-sub reveal">Découvrez notre sélection premium triée par univers</p>
+    <div class="grid-3" id="home-cats"></div>
+  </div>
+
+  <div class="glow-divider"></div>
+
+  <!-- FEATURES -->
+  <div class="section">
+    <p class="section-title reveal">POURQUOI FEUR BOXING ?</p>
+    <p class="section-sub reveal">Un service pensé pour votre sécurité et votre satisfaction</p>
+    <div class="grid-3">
+      <div class="glass-card reveal">
+        <div class="feature-icon">🔐</div>
+        <div class="feature-title">100% SÉCURISÉ</div>
+        <div class="feature-desc">Connexion via Telegram, paiement chiffré, anonymat garanti sur toutes vos commandes.</div>
+      </div>
+      <div class="glass-card reveal">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">LIVRAISON RAPIDE</div>
+        <div class="feature-desc">Votre commande traitée en moins de 24h après confirmation du paiement par notre équipe.</div>
+      </div>
+      <div class="glass-card reveal">
+        <div class="feature-icon">💎</div>
+        <div class="feature-title">QUALITÉ PREMIUM</div>
+        <div class="feature-desc">Produits sélectionnés avec soin. Satisfaction garantie ou remboursement immédiat.</div>
+      </div>
+      <div class="glass-card reveal">
+        <div class="feature-icon">🪙</div>
+        <div class="feature-title">MULTI-PAIEMENT</div>
+        <div class="feature-desc">Acceptons SOL, BTC, LTC et virement. Flexibilité totale pour vos transactions.</div>
+      </div>
+      <div class="glass-card reveal">
+        <div class="feature-icon">📲</div>
+        <div class="feature-title">SUIVI EN TEMPS RÉEL</div>
+        <div class="feature-desc">Suivez le statut de votre commande directement depuis l'interface. Notifications Telegram.</div>
+      </div>
+      <div class="glass-card reveal">
+        <div class="feature-icon">🎯</div>
+        <div class="feature-title">SUPPORT 24/7</div>
+        <div class="feature-desc">Notre équipe est disponible à tout moment pour répondre à vos questions et vous aider.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TG LOGIN INVITE -->
+  <div class="section">
+    <div class="tg-login-box reveal">
+      <div class="tg-icon">✈️</div>
+      <div class="tg-title">CONNEXION TELEGRAM</div>
+      <div class="tg-desc">Connectez-vous avec votre compte Telegram pour accéder au shop, passer des commandes et suivre vos achats. Session sauvegardée automatiquement.</div>
+      <button class="btn-tg" onclick="openLoginModal()">SE CONNECTER AVEC TELEGRAM</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ SHOP PAGE -->
+<div class="page" id="page-shop">
+  <div class="section" style="padding-top:80px">
+    <p class="section-title">SHOP</p>
+    <p class="section-sub">Sélectionnez une catégorie pour voir les produits disponibles</p>
+
+    <!-- CATEGORY FILTERS -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px;" id="shop-cat-filters"></div>
+
+    <!-- PRODUCTS GRID -->
+    <div class="grid-3" id="shop-products"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ ORDERS PAGE -->
+<div class="page" id="page-orders">
+  <div class="section" style="padding-top:80px">
+    <p class="section-title">MES COMMANDES</p>
+    <p class="section-sub">Suivez l'état de vos commandes en temps réel</p>
+    <div id="orders-list"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ ADMIN PAGE -->
+<div class="page" id="page-admin">
+  <!-- LOCK SCREEN -->
+  <div id="admin-lock" class="admin-lock">
+    <div class="admin-lock-box">
+      <div style="font-size:2.5rem;margin-bottom:16px">🔒</div>
+      <div class="modal-title" style="margin-bottom:8px">PANEL ADMIN</div>
+      <div class="modal-sub">Accès restreint — entrez votre code</div>
+      <div class="form-group">
+        <input type="password" id="admin-pwd-input" class="form-input" placeholder="Mot de passe admin" onkeypress="if(event.key==='Enter')checkAdminPwd()">
+      </div>
+      <button class="btn-glow btn-primary" style="width:100%" onclick="checkAdminPwd()">ACCÉDER</button>
+    </div>
+  </div>
+
+  <!-- ADMIN DASHBOARD -->
+  <div id="admin-dashboard" style="display:none">
+    <div class="admin-layout">
+      <div class="admin-sidebar">
+        <div class="admin-nav-item active" onclick="adminNav('dashboard',this)">📊 <span>Dashboard</span></div>
+        <div class="admin-nav-item" onclick="adminNav('orders',this)">📦 <span>Commandes</span></div>
+        <div class="admin-nav-item" onclick="adminNav('categories',this)">🗂 <span>Catégories</span></div>
+        <div class="admin-nav-item" onclick="adminNav('products',this)">🛍 <span>Produits</span></div>
+        <div class="admin-nav-item" onclick="adminNav('payments',this)">💳 <span>Paiements</span></div>
+        <div class="admin-nav-item" onclick="adminNav('settings',this)">⚙️ <span>Paramètres</span></div>
+      </div>
+      <div class="admin-content">
+
+        <!-- DASHBOARD -->
+        <div class="admin-section active" id="admin-dashboard-sec">
+          <h2 style="font-family:'Orbitron',sans-serif;margin-bottom:24px;font-size:1.3rem">📊 Dashboard</h2>
+          <div class="admin-grid">
+            <div class="admin-stat-card">
+              <div class="admin-stat-val" style="color:var(--neon-blue)" id="adm-total-orders">0</div>
+              <div class="admin-stat-label">Commandes totales</div>
+            </div>
+            <div class="admin-stat-card">
+              <div class="admin-stat-val" style="color:var(--neon-green)" id="adm-revenue">€0</div>
+              <div class="admin-stat-label">Revenus totaux</div>
+            </div>
+            <div class="admin-stat-card">
+              <div class="admin-stat-val" style="color:var(--neon-gold)" id="adm-pending">0</div>
+              <div class="admin-stat-label">En attente</div>
+            </div>
+            <div class="admin-stat-card">
+              <div class="admin-stat-val" style="color:var(--neon-violet)" id="adm-confirmed">0</div>
+              <div class="admin-stat-label">Confirmées</div>
+            </div>
+          </div>
+          <h3 style="font-family:'Orbitron',sans-serif;font-size:1rem;margin-bottom:16px;color:var(--neon-blue)">🏆 TOP PRODUITS</h3>
+          <div class="table-wrap">
+            <table><thead><tr><th>PRODUIT</th><th>CATÉGORIE</th><th>VENTES</th><th>REVENUS</th></tr></thead>
+            <tbody id="adm-top-products"></tbody></table>
+          </div>
+        </div>
+
+        <!-- ORDERS -->
+        <div class="admin-section" id="admin-orders-sec">
+          <h2 style="font-family:'Orbitron',sans-serif;margin-bottom:24px;font-size:1.3rem">📦 Commandes</h2>
+          <div class="table-wrap">
+            <table><thead><tr><th>ID</th><th>CLIENT</th><th>PRODUIT</th><th>MONTANT</th><th>STATUT</th><th>ACTIONS</th></tr></thead>
+            <tbody id="adm-orders-table"></tbody></table>
+          </div>
+        </div>
+
+        <!-- CATEGORIES -->
+        <div class="admin-section" id="admin-categories-sec">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+            <h2 style="font-family:'Orbitron',sans-serif;font-size:1.3rem">🗂 Catégories</h2>
+            <button class="btn-glow btn-primary" style="padding:10px 20px;font-size:.75rem" onclick="openCatModal()">+ AJOUTER</button>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>ICÔNE</th><th>NOM</th><th>COULEUR</th><th>PRODUITS</th><th>ACTIONS</th></tr></thead>
+            <tbody id="adm-cats-table"></tbody></table>
+          </div>
+        </div>
+
+        <!-- PRODUCTS -->
+        <div class="admin-section" id="admin-products-sec">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+            <h2 style="font-family:'Orbitron',sans-serif;font-size:1.3rem">🛍 Produits</h2>
+            <button class="btn-glow btn-primary" style="padding:10px 20px;font-size:.75rem" onclick="openProductModal()">+ AJOUTER</button>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>NOM</th><th>CATÉGORIE</th><th>PRIX</th><th>TYPE</th><th>ACTIONS</th></tr></thead>
+            <tbody id="adm-products-table"></tbody></table>
+          </div>
+        </div>
+
+        <!-- PAYMENTS -->
+        <div class="admin-section" id="admin-payments-sec">
+          <h2 style="font-family:'Orbitron',sans-serif;margin-bottom:24px;font-size:1.3rem">💳 Paramètres de paiement</h2>
+          <div class="glass-card" style="margin-bottom:20px">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:.9rem;color:var(--neon-blue);margin-bottom:16px">🪙 CRYPTO</h3>
+            <div class="form-group"><label class="form-label">Adresse SOL (Solana)</label><input id="pay-sol" class="form-input" value=""></div>
+            <div class="form-group"><label class="form-label">Adresse BTC (Bitcoin)</label><input id="pay-btc" class="form-input" value=""></div>
+            <div class="form-group"><label class="form-label">Adresse LTC (Litecoin)</label><input id="pay-ltc" class="form-input" value=""></div>
+          </div>
+          <div class="glass-card" style="margin-bottom:20px">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:.9rem;color:var(--neon-violet);margin-bottom:16px">💶 VIREMENT / PAYPAL</h3>
+            <div class="form-group"><label class="form-label">Info virement / PayPal (affiché au client)</label><textarea id="pay-viro" class="form-textarea" rows="3"></textarea></div>
+          </div>
+          <button class="btn-glow btn-primary" onclick="savePaymentSettings()">💾 SAUVEGARDER</button>
+        </div>
+
+        <!-- SETTINGS -->
+        <div class="admin-section" id="admin-settings-sec">
+          <h2 style="font-family:'Orbitron',sans-serif;margin-bottom:24px;font-size:1.3rem">⚙️ Paramètres</h2>
+          <div class="glass-card" style="margin-bottom:20px">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:.9rem;color:var(--neon-blue);margin-bottom:16px">📲 TELEGRAM</h3>
+            <div class="form-group"><label class="form-label">User ID Admin (notifications)</label><input id="set-admin-uid" class="form-input" value="5220151803"></div>
+            <div class="form-group"><label class="form-label">Token Bot</label><input id="set-bot-token" class="form-input" value="8835439612:AAGio5SpIsS7w1NyN30b96RCn8OPgQLJO0o"></div>
+            <div class="form-group"><label class="form-label">Username du Bot (sans @) — pour le bouton de connexion web</label><input id="set-bot-username" class="form-input" placeholder="ex: feurboxingbot"></div>
+          </div>
+          <div class="glass-card" style="margin-bottom:20px">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:.9rem;color:var(--neon-violet);margin-bottom:16px">🔐 SÉCURITÉ</h3>
+            <div class="form-group"><label class="form-label">Changer le mot de passe admin</label><input type="password" id="set-admin-pwd" class="form-input" placeholder="Nouveau mot de passe"></div>
+          </div>
+          <button class="btn-glow btn-primary" onclick="saveSettings()">💾 SAUVEGARDER</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ MODALS -->
+
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="modal-login">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-login')">✕</button>
+    <div class="modal-title">⚡ CONNEXION</div>
+    <div class="modal-sub">Connectez-vous pour accéder à toutes les fonctionnalités</div>
+    <div class="tg-login-box" style="margin:0;padding:20px">
+      <div class="tg-icon">✈️</div>
+      <p style="color:var(--text-dim);font-size:.9rem;margin-bottom:20px">Cliquez sur le bouton ci-dessous pour vous connecter avec votre compte Telegram. Votre session sera sauvegardée automatiquement.</p>
+      <button class="btn-tg" id="btn-tg-login" onclick="telegramLogin()">SE CONNECTER AVEC TELEGRAM</button>
+      <div id="tg-login-widget-container" style="display:none;margin-top:16px;text-align:center"></div>
+      <p style="margin-top:14px;font-size:.75rem;color:var(--text-dim)">🔒 Connexion sécurisée — Vos données ne sont jamais partagées</p>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER MODAL (multi-step) -->
+<div class="modal-overlay" id="modal-order">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-order')">✕</button>
+    <div class="steps-row">
+      <div class="step-dot active" id="step1-dot">1</div>
+      <div class="step-line"></div>
+      <div class="step-dot" id="step2-dot">2</div>
+      <div class="step-line"></div>
+      <div class="step-dot" id="step3-dot">3</div>
+      <div class="step-line"></div>
+      <div class="step-dot" id="step4-dot">✓</div>
+    </div>
+
+    <!-- STEP 1: Info -->
+    <div id="order-step1">
+      <div class="modal-title" id="order-modal-title">Commander</div>
+      <div class="modal-sub" id="order-modal-sub">Fournissez les informations nécessaires</div>
+      <div class="form-group">
+        <label class="form-label">TYPE D'INFORMATION REQUISE</label>
+        <div id="order-input-type-info" style="font-size:.85rem;color:var(--neon-violet);margin-bottom:12px;padding:8px;background:rgba(155,93,229,0.08);border-radius:6px;border-left:3px solid var(--neon-violet)"></div>
+      </div>
+      <div class="form-group" id="order-text-group">
+        <label class="form-label">TEXTE / NUMÉRO</label>
+        <textarea id="order-text-input" class="form-textarea" placeholder="Entrez votre texte ou numéro ici..."></textarea>
+      </div>
+      <div class="form-group" id="order-file-group">
+        <label class="form-label">FICHIER (PDF / PHOTO)</label>
+        <div class="file-upload-zone" onclick="document.getElementById('order-file-input').click()" id="order-drop-zone">
+          <div class="upload-icon">📎</div>
+          <div class="upload-text">Cliquez pour sélectionner ou <strong>glissez votre fichier</strong></div>
+          <div style="font-size:.75rem;color:var(--text-dim);margin-top:6px">PDF, JPG, PNG acceptés</div>
+        </div>
+        <input type="file" id="order-file-input" style="display:none" accept=".pdf,.jpg,.jpeg,.png" onchange="handleOrderFile(this)">
+      </div>
+      <button class="btn-glow btn-primary" style="width:100%;margin-top:8px" onclick="orderNextStep(2)">CONTINUER →</button>
+    </div>
+
+    <!-- STEP 2: Payment -->
+    <div id="order-step2" style="display:none">
+      <div class="modal-title">💳 PAIEMENT</div>
+      <div class="modal-sub" id="order-amount-display">Montant à régler</div>
+      <label class="form-label" style="display:block;margin-bottom:10px">CHOISISSEZ VOTRE MÉTHODE</label>
+      <div class="pay-grid" id="payment-options-grid"></div>
+      <div id="payment-details-box" style="display:none;margin-bottom:16px"></div>
+      <button class="btn-glow btn-primary" style="width:100%;margin-top:8px" onclick="orderNextStep(3)">J'AI PAYÉ →</button>
+      <button class="btn-outline" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;cursor:pointer;background:none;color:var(--text-dim);border:1px solid var(--border);font-family:'Rajdhani',sans-serif;font-size:.9rem" onclick="orderNextStep(1)">← RETOUR</button>
+    </div>
+
+    <!-- STEP 3: Proof -->
+    <div id="order-step3" style="display:none">
+      <div class="modal-title">📸 PREUVE DE PAIEMENT</div>
+      <div class="modal-sub">Uploadez une capture d'écran ou photo de votre paiement</div>
+      <div class="file-upload-zone" onclick="document.getElementById('proof-file-input').click()" id="proof-drop-zone">
+        <div class="upload-icon">📸</div>
+        <div class="upload-text">Cliquez pour uploader votre <strong>preuve de paiement</strong></div>
+        <div style="font-size:.75rem;color:var(--text-dim);margin-top:6px">PNG, JPG, PDF acceptés</div>
+      </div>
+      <input type="file" id="proof-file-input" style="display:none" accept=".jpg,.jpeg,.png,.pdf" onchange="handleProofFile(this)">
+      <div style="background:rgba(255,214,10,0.05);border:1px solid rgba(255,214,10,0.2);border-radius:8px;padding:12px;margin:16px 0;font-size:.85rem;color:var(--neon-gold)">
+        ⚠️ Votre preuve sera vérifiée par notre équipe. La commande sera traitée après confirmation.
+      </div>
+      <button class="btn-glow btn-primary" style="width:100%" id="submit-order-btn" onclick="submitOrder()">📤 ENVOYER LA COMMANDE</button>
+      <button class="btn-outline" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;cursor:pointer;background:none;color:var(--text-dim);border:1px solid var(--border);font-family:'Rajdhani',sans-serif;font-size:.9rem" onclick="orderNextStep(2)">← RETOUR</button>
+    </div>
+
+    <!-- STEP 4: Success -->
+    <div id="order-step4" style="display:none;text-align:center">
+      <div style="font-size:3rem;margin-bottom:16px">✅</div>
+      <div class="modal-title">COMMANDE ENVOYÉE !</div>
+      <div class="modal-sub" style="margin-bottom:24px">Votre commande a été transmise à notre équipe. Vous serez notifié sur Telegram dès validation du paiement.</div>
+      <div style="background:rgba(57,255,20,0.05);border:1px solid rgba(57,255,20,0.2);border-radius:10px;padding:16px;font-family:'Share Tech Mono',monospace;font-size:.8rem;color:var(--neon-green);margin-bottom:20px" id="order-confirm-id"></div>
+      <button class="btn-glow btn-primary" onclick="closeModal('modal-order');showPage('orders')">VOIR MES COMMANDES</button>
+    </div>
+  </div>
+</div>
+
+<!-- CATEGORY EDIT MODAL -->
+<div class="modal-overlay" id="modal-cat">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-cat')">✕</button>
+    <div class="modal-title" id="cat-modal-title">Nouvelle catégorie</div>
+    <div class="modal-sub">Configurez votre catégorie</div>
+    <input type="hidden" id="cat-edit-id">
+    <div class="form-group"><label class="form-label">NOM</label><input id="cat-name" class="form-input" placeholder="Ex: Gants de boxe"></div>
+    <div class="form-group"><label class="form-label">ICÔNE (emoji)</label><input id="cat-icon" class="form-input" placeholder="🥊" maxlength="4"></div>
+    <div class="form-group"><label class="form-label">DESCRIPTION</label><textarea id="cat-desc-input" class="form-textarea" rows="2"></textarea></div>
+    <div class="form-group"><label class="form-label">COULEUR DU BOUTON</label>
+      <select id="cat-color" class="form-select">
+        <option value="blue">Bleu (Neon)</option>
+        <option value="violet">Violet</option>
+        <option value="pink">Rose/Pink</option>
+      </select>
+    </div>
+    <button class="btn-glow btn-primary" style="width:100%" onclick="saveCat()">💾 SAUVEGARDER</button>
+  </div>
+</div>
+
+<!-- PRODUCT EDIT MODAL -->
+<div class="modal-overlay" id="modal-product">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-product')">✕</button>
+    <div class="modal-title" id="product-modal-title">Nouveau produit</div>
+    <div class="modal-sub">Ajoutez ou modifiez un produit</div>
+    <input type="hidden" id="product-edit-id">
+    <div class="form-group"><label class="form-label">NOM</label><input id="product-name" class="form-input"></div>
+    <div class="form-group"><label class="form-label">CATÉGORIE</label>
+      <select id="product-cat" class="form-select" style="width:100%"></select>
+    </div>
+    <div class="form-group"><label class="form-label">PRIX (€)</label><input id="product-price" class="form-input" type="number" min="0"></div>
+    <div class="form-group"><label class="form-label">DESCRIPTION</label><textarea id="product-desc-input" class="form-textarea" rows="2"></textarea></div>
+    <div class="form-group"><label class="form-label">ICÔNE (emoji)</label><input id="product-icon" class="form-input" maxlength="4" placeholder="🥊"></div>
+    <div class="form-group"><label class="form-label">TYPE D'INFO REQUIS DU CLIENT</label>
+      <select id="product-input-type" class="form-select">
+        <option value="both">Texte/Numéro + Fichier PDF/Photo</option>
+        <option value="text">Texte ou Numéro uniquement</option>
+        <option value="file">Fichier PDF/Photo uniquement</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">INFO POUR LE CLIENT</label><input id="product-input-hint" class="form-input" placeholder="Ex: Entrez votre numéro de licence"></div>
+    <div class="form-group">
+      <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="product-active" checked style="width:16px;height:16px">
+        PRODUIT ACTIF
+      </label>
+    </div>
+    <button class="btn-glow btn-primary" style="width:100%" onclick="saveProduct()">💾 SAUVEGARDER</button>
+  </div>
+</div>
+
+<!-- ORDER DETAIL ADMIN MODAL -->
+<div class="modal-overlay" id="modal-order-detail">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="closeModal('modal-order-detail')">✕</button>
+    <div class="modal-title" id="odet-title">Commande</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:.8rem;color:var(--text-dim);margin-bottom:20px" id="odet-id"></div>
+    <div class="glass-card" style="margin-bottom:16px" id="odet-info"></div>
+    <div style="margin-bottom:16px">
+      <label class="form-label">CHANGER LE STATUT</label>
+      <select id="odet-status" class="form-select" style="width:100%;margin-bottom:10px">
+        <option value="pending">En attente de paiement</option>
+        <option value="paid">Paiement envoyé</option>
+        <option value="processing">En traitement</option>
+        <option value="confirmed">Confirmée / Livrée</option>
+        <option value="refused">Refusée</option>
+      </select>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-glow btn-primary" style="flex:1;padding:10px;font-size:.75rem" onclick="saveOrderStatus()">✅ CONFIRMER</button>
+        <button style="flex:1;padding:10px;background:rgba(247,37,133,0.1);border:1px solid var(--neon-pink);color:var(--neon-pink);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.85rem" onclick="refuseOrder()">❌ REFUSER</button>
+        <button style="flex:1;padding:10px;background:rgba(0,136,204,0.1);border:1px solid #0088cc;color:#0088cc;border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.85rem" onclick="contactClient()">📲 CONTACTER</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
+
+<!-- SUPPORT FLOAT -->
+<button class="support-float" onclick="window.open('https://t.me/feurman1','_blank')">💬 SUPPORT</button>
+
+<script>
+// ═══════════════════════════════════
+// STATE
+// ═══════════════════════════════════
+const BOT_TOKEN_DEFAULT = '8835439612:AAGio5SpIsS7w1NyN30b96RCn8OPgQLJO0o';
+const ADMIN_UID_DEFAULT = '5220151803';
+
+let STATE = {
+  user: null,
+  currentCatFilter: 'all',
+  currentOrder: {},
+  currentAdminOrderId: null,
+  adminUnlocked: false,
+};
+
+const DB = {
+  get: (k, def) => { try { const v = localStorage.getItem('fb_'+k); return v ? JSON.parse(v) : def; } catch(e){ return def; } },
+  set: (k, v) => { try { localStorage.setItem('fb_'+k, JSON.stringify(v)); } catch(e){} }
+};
+
+let categories = DB.get('cats', [
+  {id:'cat1',name:'Gants & Équipements',icon:'🥊',desc:'Gants de boxe, protège-dents, bandages premium',color:'blue'},
+  {id:'cat2',name:'Coaching Privé',icon:'🏋️',desc:'Sessions 1-on-1 avec nos coachs certifiés',color:'violet'},
+  {id:'cat3',name:'Documents Officiels',icon:'📋',desc:'Licences, certifications, accréditations sportives',color:'pink'},
+  {id:'cat4',name:'Nutrition & Compléments',icon:'💊',desc:'Suppléments pro, packs nutrition sur mesure',color:'blue'},
+  {id:'cat5',name:'Merchandising',icon:'👕',desc:'Vêtements et accessoires FEUR BOXING exclusifs',color:'violet'},
+  {id:'cat6',name:'Formations',icon:'🎓',desc:'Accès aux cours vidéo et programmes d\'entraînement',color:'pink'},
+]);
+
+let products = DB.get('products', [
+  {id:'p1',catId:'cat1',name:'Gants Pro 12oz',price:85,icon:'🥊',desc:'Gants professionnels cuir véritable, idéaux compétition',inputType:'text',inputHint:'Entrez votre tour de main en cm',active:true},
+  {id:'p2',catId:'cat1',name:'Bandages Mexicains',price:25,icon:'🩹',desc:'Bandages élastiques 4.5m, protection maximale des poignets',inputType:'text',inputHint:'Taille : S/M/L/XL',active:true},
+  {id:'p3',catId:'cat2',name:'Session Coaching x5',price:200,icon:'🏋️',desc:'5 sessions d\'1h avec un coach certifié FBF',inputType:'both',inputHint:'Indiquez votre niveau et disponibilités',active:true},
+  {id:'p4',catId:'cat3',name:'Licence Fédérale',price:120,icon:'📋',desc:'Obtention ou renouvellement de votre licence officielle',inputType:'file',inputHint:'Uploadez une photo de votre pièce d\'identité',active:true},
+  {id:'p5',catId:'cat4',name:'Pack Protéines 3 mois',price:150,icon:'💊',desc:'Whey protein + créatine + BCAA — formule exclusive',inputType:'text',inputHint:'Entrez votre poids et objectif (masse/sèche)',active:true},
+  {id:'p6',catId:'cat5',name:'T-shirt FEUR BOXING',price:45,icon:'👕',desc:'T-shirt technique coton/polyester, logo brodé',inputType:'text',inputHint:'Taille (XS/S/M/L/XL/XXL) et couleur',active:true},
+  {id:'p7',catId:'cat6',name:'Formation Boxe Thaï',price:99,icon:'🎓',desc:'12h de contenu vidéo, niveau débutant à avancé',inputType:'text',inputHint:'Votre email pour accès à la plateforme',active:true},
+  {id:'p8',catId:'cat6',name:'Programme 8 semaines',price:79,icon:'📅',desc:'Programme structuré avec suivi nutritionnel inclus',inputType:'both',inputHint:'Indiquez votre niveau actuel',active:true},
+]);
+
+let orders = DB.get('orders', []);
+
+let paymentSettings = DB.get('paySettings', {
+  sol: 'GfkQLH7mVQr3ZWdmBZFqNKJhEu5HpDxFYv3AXP9nWSQC',
+  btc: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  ltc: 'LaBFN7mGdLXhB9Vwx8FtEGBs5NJPqa2DdK',
+  viro: 'PayPal : paypal.me/feurboxing\n\nVirement IBAN : FR76 3000 4000 0300 0001 0000 000\nBIC : BNPAFRPPXXX\nRéférence : votre ID de commande'
+});
+
+let appSettings = DB.get('appSettings', {
+  adminUid: ADMIN_UID_DEFAULT,
+  botToken: BOT_TOKEN_DEFAULT,
+  adminPwd: 'admin2024',
+  botUsername: ''
+});
+
+function saveAll() {
+  DB.set('cats', categories);
+  DB.set('products', products);
+  DB.set('orders', orders);
+  DB.set('paySettings', paymentSettings);
+  DB.set('appSettings', appSettings);
+}
+
+// ═══════════════════════════════════
+// PARTICLES
+// ═══════════════════════════════════
+(function(){
+  const c = document.getElementById('canvas-bg');
+  const ctx = c.getContext('2d');
+  let W, H, pts = [];
+  function resize(){ W=c.width=innerWidth; H=c.height=innerHeight; }
+  resize(); addEventListener('resize', resize);
+  for(let i=0;i<80;i++) pts.push({x:Math.random()*1920,y:Math.random()*1080,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,r:Math.random()*2+.5,op:Math.random()*.4+.1});
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>W)p.vx*=-1;
+      if(p.y<0||p.y>H)p.vy*=-1;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      const col = Math.random()>.5?`rgba(0,212,255,${p.op})`:`rgba(155,93,229,${p.op})`;
+      ctx.fillStyle=col;
+      ctx.fill();
+    });
+    // connections
+    for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+      const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y;
+      const d=Math.sqrt(dx*dx+dy*dy);
+      if(d<120){ ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y);
+        ctx.strokeStyle=`rgba(0,212,255,${.07*(1-d/120)})`; ctx.lineWidth=.5; ctx.stroke(); }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ═══════════════════════════════════
+// SCROLL REVEAL
+// ═══════════════════════════════════
+const revealObserver = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
+},{threshold:.15});
+function observeReveals(){ document.querySelectorAll('.reveal').forEach(el=>revealObserver.observe(el)); }
+
+// ═══════════════════════════════════
+// PAGES
+// ═══════════════════════════════════
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  window.scrollTo(0,0);
+  if(id==='shop') renderShop();
+  if(id==='orders') renderOrders();
+  if(id==='admin') { if(!STATE.adminUnlocked) document.getElementById('admin-lock').style.display='flex'; }
+  setTimeout(observeReveals, 100);
+}
+
+// ═══════════════════════════════════
+// TELEGRAM AUTH
+// ═══════════════════════════════════
+function telegramLogin(){
+  const tg = window.Telegram?.WebApp;
+  if(tg && tg.initDataUnsafe && tg.initDataUnsafe.user){
+    const u = tg.initDataUnsafe.user;
+    loginUser({id:u.id, name:(u.first_name+' '+(u.last_name||'')).trim(), username:u.username||'', photo:u.photo_url||null});
+  } else {
+    // Try Telegram Login Widget
+    if(appSettings.botUsername){
+      renderTelegramLoginWidget();
+    } else {
+      showToast('⚡ Ouvrez ce lien depuis Telegram ou configurez le bot username dans l\'admin','info');
+    }
+  }
+}
+
+function renderTelegramLoginWidget(){
+  const box = document.getElementById('tg-login-widget-container');
+  box.innerHTML = '';
+  const script = document.createElement('script');
+  script.src = 'https://telegram.org/js/telegram-widget.js?22';
+  script.setAttribute('data-telegram-login', appSettings.botUsername);
+  script.setAttribute('data-size', 'large');
+  script.setAttribute('data-radius', '8');
+  script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+  script.setAttribute('data-request-access', 'write');
+  script.async = true;
+  box.appendChild(script);
+  box.style.display = 'block';
+  document.getElementById('btn-tg-login').style.display = 'none';
+}
+
+window.onTelegramAuth = function(user){
+  loginUser({
+    id: user.id,
+    name: (user.first_name+' '+(user.last_name||'')).trim(),
+    username: user.username||'',
+    photo: user.photo_url||null
+  });
+};
+
+function loginUser(u){
+  STATE.user = u;
+  DB.set('session', u);
+  updateNavAuth();
+  closeModal('modal-login');
+  showToast('✅ Connecté en tant que '+u.name,'success');
+}
+
+function checkStoredSession(){
+  const s = DB.get('session', null);
+  if(s){ STATE.user = s; updateNavAuth(); }
+}
+
+function updateNavAuth(){
+  const u = STATE.user;
+  const nav = document.getElementById('nav-right');
+  if(!u){
+    nav.innerHTML = `<button class="nav-btn" onclick="showPage('shop')">SHOP</button><button class="nav-btn primary" onclick="openLoginModal()" id="nav-login-btn">CONNEXION</button>`;
+  } else {
+    const init = u.name.charAt(0).toUpperCase();
+    nav.innerHTML = `
+      <button class="nav-btn" onclick="showPage('shop')">SHOP</button>
+      <button class="nav-btn" onclick="showPage('orders')">MES COMMANDES</button>
+      <div class="user-avatar" onclick="showUserMenu()">${init}</div>
+    `;
+  }
+}
+
+function showUserMenu(){
+  showToast('👤 '+STATE.user.name+' — Connecté','info');
+}
+
+// ═══════════════════════════════════
+// HOME CATEGORIES RENDER
+// ═══════════════════════════════════
+function renderHomeCats(){
+  const el = document.getElementById('home-cats');
+  el.innerHTML = categories.map(c=>`
+    <div class="glass-card reveal" onclick="showPage('shop');filterCat('${c.id}')">
+      <div class="cat-icon">${c.icon}</div>
+      <div class="cat-title">${c.name}</div>
+      <div class="cat-desc">${c.desc}</div>
+      <div class="cat-count">${products.filter(p=>p.catId===c.id&&p.active).length} produit(s) disponible(s)</div>
+      <button class="cat-btn cat-btn-${c.color}">EXPLORER →</button>
+    </div>
+  `).join('');
+  document.getElementById('stat-cats').textContent = categories.length;
+  observeReveals();
+}
+
+// ═══════════════════════════════════
+// SHOP RENDER
+// ═══════════════════════════════════
+function renderShopFilters(){
+  const el = document.getElementById('shop-cat-filters');
+  el.innerHTML = `<button class="nav-btn ${STATE.currentCatFilter==='all'?'primary':''}" onclick="filterCat('all')">TOUS</button>`
+    + categories.map(c=>`<button class="nav-btn ${STATE.currentCatFilter===c.id?'primary':''}" onclick="filterCat('${c.id}')">${c.icon} ${c.name}</button>`).join('');
+}
+
+function filterCat(id){
+  STATE.currentCatFilter = id;
+  renderShop();
+}
+
+function renderShop(){
+  renderShopFilters();
+  const el = document.getElementById('shop-products');
+  const filtered = products.filter(p=>p.active && (STATE.currentCatFilter==='all'||p.catId===STATE.currentCatFilter));
+  if(!filtered.length){ el.innerHTML='<p style="color:var(--text-dim);grid-column:1/-1;text-align:center;padding:40px">Aucun produit dans cette catégorie.</p>'; return; }
+  const catMap = {};
+  categories.forEach(c=>catMap[c.id]=c);
+  el.innerHTML = filtered.map(p=>{
+    const cat = catMap[p.catId]||{};
+    return `
+    <div class="product-card" onclick="openOrderModal('${p.id}')">
+      <div class="product-img" style="background:linear-gradient(135deg,rgba(155,93,229,0.12),rgba(0,212,255,0.08))">
+        <span style="font-size:3rem">${p.icon}</span>
+        <div class="product-price-tag">€${p.price}</div>
+      </div>
+      <div class="product-body">
+        <div class="product-title">${p.name}</div>
+        <div class="product-desc">${p.desc}</div>
+        <div class="product-meta">
+          <span class="product-type">${cat.name||''}</span>
+          <button class="product-buy" onclick="event.stopPropagation();openOrderModal('${p.id}')">COMMANDER</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════
+// ORDER FLOW
+// ═══════════════════════════════════
+function openOrderModal(productId){
+  if(!STATE.user){ openLoginModal(); showToast('⚡ Connectez-vous d\'abord','info'); return; }
+  const p = products.find(x=>x.id===productId);
+  if(!p) return;
+  STATE.currentOrder = { productId, product: p, file:null, proofFile:null, text:'', payMethod:null };
+
+  document.getElementById('order-modal-title').textContent = p.name;
+  document.getElementById('order-modal-sub').textContent = '€'+p.price+' — '+p.desc;
+  document.getElementById('order-input-type-info').textContent = '📌 '+p.inputHint;
+  document.getElementById('order-text-input').value = '';
+  document.getElementById('order-drop-zone').innerHTML = '<div class="upload-icon">📎</div><div class="upload-text">Cliquez pour sélectionner ou <strong>glissez votre fichier</strong></div><div style="font-size:.75rem;color:var(--text-dim);margin-top:6px">PDF, JPG, PNG acceptés</div>';
+  document.getElementById('order-drop-zone').classList.remove('has-file');
+
+  // Show/hide inputs based on type
+  const t = p.inputType;
+  document.getElementById('order-text-group').style.display = (t==='text'||t==='both') ? 'block':'none';
+  document.getElementById('order-file-group').style.display = (t==='file'||t==='both') ? 'block':'none';
+
+  document.getElementById('order-amount-display').textContent = 'Montant : €'+p.price;
+  renderPaymentOptions();
+  goOrderStep(1);
+  openModal('modal-order');
+}
+
+function renderPaymentOptions(){
+  const g = document.getElementById('payment-options-grid');
+  g.innerHTML = `
+    <button class="pay-option" onclick="selectPay('sol',this)"><div class="pay-logo">◎</div><div class="pay-name">SOL</div></button>
+    <button class="pay-option" onclick="selectPay('btc',this)"><div class="pay-logo">₿</div><div class="pay-name">BTC</div></button>
+    <button class="pay-option" onclick="selectPay('ltc',this)"><div class="pay-logo">Ł</div><div class="pay-name">LTC</div></button>
+    <button class="pay-option" onclick="selectPay('viro',this)"><div class="pay-logo">💶</div><div class="pay-name">Virement/PayPal</div></button>
+  `;
+}
+
+function selectPay(method, btn){
+  document.querySelectorAll('.pay-option').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  STATE.currentOrder.payMethod = method;
+  const box = document.getElementById('payment-details-box');
+  let html = '';
+  if(method==='sol') html=`<div class="pay-address">SOL — Solana<br>${paymentSettings.sol}</div><button class="copy-btn" onclick="copyText('${paymentSettings.sol}')">📋 COPIER L'ADRESSE</button>`;
+  else if(method==='btc') html=`<div class="pay-address">BTC — Bitcoin<br>${paymentSettings.btc}</div><button class="copy-btn" onclick="copyText('${paymentSettings.btc}')">📋 COPIER L'ADRESSE</button>`;
+  else if(method==='ltc') html=`<div class="pay-address">LTC — Litecoin<br>${paymentSettings.ltc}</div><button class="copy-btn" onclick="copyText('${paymentSettings.ltc}')">📋 COPIER L'ADRESSE</button>`;
+  else html=`<div class="pay-address">${paymentSettings.viro.replace(/\n/g,'<br>')}</div>`;
+  box.innerHTML = html;
+  box.style.display='block';
+}
+
+function handleOrderFile(input){
+  const f = input.files[0];
+  if(!f) return;
+  STATE.currentOrder.file = f;
+  const dz = document.getElementById('order-drop-zone');
+  dz.innerHTML = `<div class="upload-icon">✅</div><div class="upload-text"><strong>${f.name}</strong></div><div style="font-size:.75rem;color:var(--neon-green);margin-top:4px">${(f.size/1024).toFixed(1)} KB</div>`;
+  dz.classList.add('has-file');
+}
+
+function handleProofFile(input){
+  const f = input.files[0];
+  if(!f) return;
+  STATE.currentOrder.proofFile = f;
+  const dz = document.getElementById('proof-drop-zone');
+  dz.innerHTML = `<div class="upload-icon">✅</div><div class="upload-text"><strong>${f.name}</strong></div><div style="font-size:.75rem;color:var(--neon-green);margin-top:4px">${(f.size/1024).toFixed(1)} KB</div>`;
+  dz.classList.add('has-file');
+}
+
+function orderNextStep(step){
+  // Validate step 1
+  if(step===2){
+    const p = STATE.currentOrder.product;
+    const t = p.inputType;
+    if((t==='text'||t==='both') && !document.getElementById('order-text-input').value.trim()){
+      showToast('⚠️ Veuillez entrer le texte/numéro requis','error'); return;
+    }
+    if((t==='file'||t==='both') && !STATE.currentOrder.file){
+      showToast('⚠️ Veuillez uploader un fichier','error'); return;
+    }
+    STATE.currentOrder.text = document.getElementById('order-text-input').value.trim();
+  }
+  if(step===3 && !STATE.currentOrder.payMethod){
+    showToast('⚠️ Sélectionnez une méthode de paiement','error'); return;
+  }
+  goOrderStep(step);
+}
+
+function goOrderStep(n){
+  [1,2,3,4].forEach(i=>{
+    document.getElementById('order-step'+i).style.display = i===n?'block':'none';
+    const dot = document.getElementById('step'+i+'-dot');
+    dot.classList.remove('active','done');
+    if(i===n) dot.classList.add('active');
+    else if(i<n) dot.classList.add('done');
+  });
+}
+
+async function submitOrder(){
+  if(!STATE.currentOrder.proofFile){
+    showToast('⚠️ Uploadez une preuve de paiement','error'); return;
+  }
+  const submitBtn = document.getElementById('submit-order-btn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = '⏳ ENVOI EN COURS...';
+  try { await _submitOrder(); } catch(e){ console.error(e); showToast('❌ Erreur lors de l\'envoi','error'); }
+  submitBtn.disabled = false;
+  submitBtn.textContent = '📤 ENVOYER LA COMMANDE';
+}
+
+async function _submitOrder(){
+  const orderId = 'FB-'+Date.now().toString(36).toUpperCase();
+  const catMap = {}; categories.forEach(c=>catMap[c.id]=c);
+  const catName = catMap[STATE.currentOrder.product.catId]?.name || '';
+  const order = {
+    id: orderId,
+    userId: STATE.user.id,
+    userName: STATE.user.name,
+    username: STATE.user.username,
+    productId: STATE.currentOrder.productId,
+    productName: STATE.currentOrder.product.name,
+    catId: STATE.currentOrder.product.catId,
+    catName,
+    price: STATE.currentOrder.product.price,
+    text: STATE.currentOrder.text,
+    payMethod: STATE.currentOrder.payMethod,
+    status: 'paid',
+    date: new Date().toISOString(),
+    proofFileName: STATE.currentOrder.proofFile.name,
+    hasOrderFile: !!STATE.currentOrder.file,
+  };
+  orders.unshift(order);
+  saveAll();
+
+  const token = appSettings.botToken;
+  const adminUid = appSettings.adminUid;
+  const apiBase = `https://api.telegram.org/bot${token}`;
+
+  // 1. Send text summary to admin
+  try {
+    const msg = `🆕 *NOUVELLE COMMANDE — FEUR BOXING*\n\n📦 *${order.productName}*\n🗂 Catégorie : ${catName}\n💰 *€${order.price}*\n💳 Paiement : ${order.payMethod.toUpperCase()}\n\n👤 *${order.userName}*${order.username?' (@'+order.username+')':''}\n🆔 User ID : \`${order.userId}\`\n📋 Info client : ${order.text||'_(fichier joint)_'}\n🗓 ${new Date().toLocaleString('fr-FR')}\n\n🔑 Commande : \`${orderId}\`\n\n👇 _Voir le panel admin pour confirmer ou refuser_`;
+    await fetch(`${apiBase}/sendMessage`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({chat_id:adminUid, text:msg, parse_mode:'Markdown'})
+    });
+  } catch(e){ console.warn('TG msg error',e); }
+
+  // 2. Send proof of payment photo to admin
+  try {
+    const fd = new FormData();
+    fd.append('chat_id', adminUid);
+    fd.append('caption', `📸 Preuve de paiement\nCommande : ${orderId}\nClient : ${order.userName}`);
+    const proofFile = STATE.currentOrder.proofFile;
+    if(proofFile.type === 'application/pdf'){
+      fd.append('document', proofFile, proofFile.name);
+      await fetch(`${apiBase}/sendDocument`, {method:'POST', body:fd});
+    } else {
+      fd.append('photo', proofFile, proofFile.name);
+      await fetch(`${apiBase}/sendPhoto`, {method:'POST', body:fd});
+    }
+  } catch(e){ console.warn('TG proof error',e); }
+
+  // 3. Send order file/document if provided
+  if(STATE.currentOrder.file){
+    try {
+      const fd2 = new FormData();
+      fd2.append('chat_id', adminUid);
+      fd2.append('caption', `📎 Document fourni par le client\nCommande : ${orderId}\nProduit : ${order.productName}`);
+      const orderFile = STATE.currentOrder.file;
+      if(orderFile.type === 'application/pdf'){
+        fd2.append('document', orderFile, orderFile.name);
+        await fetch(`${apiBase}/sendDocument`, {method:'POST', body:fd2});
+      } else {
+        fd2.append('photo', orderFile, orderFile.name);
+        await fetch(`${apiBase}/sendPhoto`, {method:'POST', body:fd2});
+      }
+    } catch(e){ console.warn('TG file error',e); }
+  }
+
+  document.getElementById('order-confirm-id').textContent = '📋 Commande ID : '+orderId;
+  goOrderStep(4);
+  document.getElementById('stat-orders').textContent = (parseInt(document.getElementById('stat-orders').textContent.replace(',',''))+1).toLocaleString();
+}
+
+// ═══════════════════════════════════
+// ORDERS LIST
+// ═══════════════════════════════════
+function renderOrders(){
+  if(!STATE.user){ document.getElementById('orders-list').innerHTML='<div class="tg-login-box" style="max-width:380px;margin:0 auto"><div class="tg-icon">🔒</div><div class="tg-title">CONNEXION REQUISE</div><div class="tg-desc">Connectez-vous pour voir vos commandes</div><button class="btn-tg" onclick="openLoginModal()">SE CONNECTER</button></div>'; return; }
+  const myOrders = orders.filter(o=>o.userId===STATE.user.id);
+  if(!myOrders.length){ document.getElementById('orders-list').innerHTML='<div style="text-align:center;padding:60px;color:var(--text-dim)"><div style="font-size:3rem;margin-bottom:16px">📦</div><p>Aucune commande pour l\'instant</p><button class="btn-glow btn-primary" style="margin-top:20px" onclick="showPage(\'shop\')">ALLER AU SHOP</button></div>'; return; }
+  const statusLabels = {pending:'En attente',paid:'Paiement envoyé',processing:'En traitement',confirmed:'Confirmée ✓',refused:'Refusée'};
+  const progress = {pending:15,paid:40,processing:65,confirmed:100,refused:0};
+  const catMap = {}; categories.forEach(c=>catMap[c.id]=c);
+  document.getElementById('orders-list').innerHTML = myOrders.map(o=>`
+    <div class="order-card">
+      <div class="order-header">
+        <div><div class="order-id">${o.id}</div><div class="order-product">${o.productName}</div><div class="order-cat">${catMap[o.catId]?.name||''}</div></div>
+        <span class="order-status status-${o.status}">${statusLabels[o.status]||o.status}</span>
+      </div>
+      <div class="order-price">€${o.price} — ${o.payMethod?.toUpperCase()}</div>
+      <div class="order-date">📅 ${new Date(o.date).toLocaleString('fr-FR')}</div>
+      <div class="order-progress"><div class="order-progress-bar" style="width:${progress[o.status]||0}%"></div></div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════
+// ADMIN
+// ═══════════════════════════════════
+function checkAdminPwd(){
+  const pwd = document.getElementById('admin-pwd-input').value;
+  if(pwd===appSettings.adminPwd){
+    STATE.adminUnlocked=true;
+    document.getElementById('admin-lock').style.display='none';
+    document.getElementById('admin-dashboard').style.display='block';
+    refreshAdminDashboard();
+  } else {
+    showToast('❌ Mot de passe incorrect','error');
+  }
+}
+
+function adminNav(section, el){
+  document.querySelectorAll('.admin-nav-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.admin-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('admin-'+section+'-sec').classList.add('active');
+  if(section==='dashboard') refreshAdminDashboard();
+  if(section==='orders') renderAdminOrders();
+  if(section==='categories') renderAdminCats();
+  if(section==='products') renderAdminProducts();
+  if(section==='payments') loadPaymentSettings();
+  if(section==='settings') loadSettings();
+}
+
+function refreshAdminDashboard(){
+  const total = orders.length;
+  const revenue = orders.filter(o=>o.status==='confirmed').reduce((s,o)=>s+o.price,0);
+  const pending = orders.filter(o=>o.status==='paid').length;
+  const confirmed = orders.filter(o=>o.status==='confirmed').length;
+  document.getElementById('adm-total-orders').textContent = total;
+  document.getElementById('adm-revenue').textContent = '€'+revenue;
+  document.getElementById('adm-pending').textContent = pending;
+  document.getElementById('adm-confirmed').textContent = confirmed;
+
+  // Top products
+  const pSales = {};
+  orders.forEach(o=>{ if(!pSales[o.productId])pSales[o.productId]={name:o.productName,sales:0,rev:0}; pSales[o.productId].sales++; pSales[o.productId].rev+=o.price; });
+  const top = Object.values(pSales).sort((a,b)=>b.sales-a.sales).slice(0,5);
+  const catMap={}; categories.forEach(c=>catMap[c.id]=c);
+  const prodMap={}; products.forEach(p=>prodMap[p.id]=p);
+  document.getElementById('adm-top-products').innerHTML = top.map(t=>`
+    <tr><td>${t.name}</td><td>${catMap[prodMap[Object.keys(pSales).find(k=>pSales[k]===t)]?.catId]?.name||''}</td><td>${t.sales}</td><td style="color:var(--neon-green)">€${t.rev}</td></tr>
+  `).join('');
+}
+
+function renderAdminOrders(){
+  const statusLabels = {pending:'En attente',paid:'Payé',processing:'En traitement',confirmed:'Confirmée',refused:'Refusée'};
+  document.getElementById('adm-orders-table').innerHTML = orders.map(o=>`
+    <tr>
+      <td class="td-id">${o.id}</td>
+      <td>${o.userName}${o.username?' (@'+o.username+')':''}</td>
+      <td>${o.productName}</td>
+      <td style="color:var(--neon-green)">€${o.price}</td>
+      <td><span class="order-status status-${o.status}" style="font-size:.72rem">${statusLabels[o.status]||o.status}</span></td>
+      <td><button class="copy-btn" onclick="openOrderDetail('${o.id}')">👁 VOIR</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:24px">Aucune commande</td></tr>';
+}
+
+function openOrderDetail(orderId){
+  const o = orders.find(x=>x.id===orderId);
+  if(!o) return;
+  STATE.currentAdminOrderId = orderId;
+  document.getElementById('odet-title').textContent = o.productName;
+  document.getElementById('odet-id').textContent = o.id;
+  document.getElementById('odet-status').value = o.status;
+  document.getElementById('odet-info').innerHTML = `
+    <div style="font-size:.9rem;line-height:1.8">
+      <div>👤 <strong>${o.userName}</strong>${o.username?' (@'+o.username+')':''}</div>
+      <div>💰 €${o.price} — ${o.payMethod?.toUpperCase()}</div>
+      <div>📋 Info client : ${o.text||'(fichier fourni)'}</div>
+      <div>📎 Preuve : ${o.proofFileName||'N/A'}</div>
+      <div>📅 ${new Date(o.date).toLocaleString('fr-FR')}</div>
+    </div>
+  `;
+  openModal('modal-order-detail');
+}
+
+async function saveOrderStatus(){
+  const o = orders.find(x=>x.id===STATE.currentAdminOrderId);
+  if(!o) return;
+  const newStatus = document.getElementById('odet-status').value;
+  o.status = newStatus;
+  saveAll();
+  closeModal('modal-order-detail');
+  renderAdminOrders();
+  showToast('✅ Statut mis à jour : '+newStatus,'success');
+
+  // Notify client via Telegram
+  if(o.username || o.userId){
+    const msgs = {
+      confirmed:'✅ Votre commande *'+o.productName+'* a été confirmée ! Merci de votre confiance. — FEUR BOXING',
+      refused:'❌ Votre commande *'+o.productName+'* a été refusée. Contactez le support : @feurman1',
+      processing:'🔄 Votre commande *'+o.productName+'* est en cours de traitement.',
+    };
+    if(msgs[newStatus]){
+      try {
+        await fetch(`https://api.telegram.org/bot${appSettings.botToken}/sendMessage`,{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({chat_id:o.userId,text:msgs[newStatus],parse_mode:'Markdown'})
+        });
+      } catch(e){}
+    }
+  }
+}
+
+function refuseOrder(){
+  document.getElementById('odet-status').value='refused';
+  saveOrderStatus();
+}
+
+function contactClient(){
+  const o = orders.find(x=>x.id===STATE.currentAdminOrderId);
+  if(!o) return;
+  if(o.username) window.open('https://t.me/'+o.username,'_blank');
+  else if(o.userId) window.open('tg://user?id='+o.userId,'_blank');
+  else showToast('⚠️ Pas de contact Telegram disponible','error');
+}
+
+function renderAdminCats(){
+  document.getElementById('adm-cats-table').innerHTML = categories.map(c=>`
+    <tr>
+      <td style="font-size:1.3rem">${c.icon}</td>
+      <td>${c.name}</td>
+      <td><span class="tag" style="background:rgba(0,212,255,0.1);color:var(--neon-${c.color}||var(--neon-blue))">${c.color}</span></td>
+      <td>${products.filter(p=>p.catId===c.id).length}</td>
+      <td style="display:flex;gap:8px">
+        <button class="copy-btn" onclick="editCat('${c.id}')">✏️ ÉDITER</button>
+        <button class="copy-btn" style="color:var(--neon-pink)" onclick="deleteCat('${c.id}')">🗑 SUP</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openCatModal(id=null){
+  document.getElementById('cat-edit-id').value=id||'';
+  const c = id ? categories.find(x=>x.id===id) : null;
+  document.getElementById('cat-modal-title').textContent = id?'Modifier catégorie':'Nouvelle catégorie';
+  document.getElementById('cat-name').value = c?.name||'';
+  document.getElementById('cat-icon').value = c?.icon||'';
+  document.getElementById('cat-desc-input').value = c?.desc||'';
+  document.getElementById('cat-color').value = c?.color||'blue';
+  openModal('modal-cat');
+}
+function editCat(id){ openCatModal(id); }
+
+function saveCat(){
+  const id = document.getElementById('cat-edit-id').value;
+  const obj = {
+    id: id||('cat'+Date.now()),
+    name:document.getElementById('cat-name').value,
+    icon:document.getElementById('cat-icon').value,
+    desc:document.getElementById('cat-desc-input').value,
+    color:document.getElementById('cat-color').value
+  };
+  if(id){ const i=categories.findIndex(c=>c.id===id); categories[i]=obj; }
+  else categories.push(obj);
+  saveAll(); closeModal('modal-cat'); renderAdminCats(); renderHomeCats(); renderShop();
+  showToast('✅ Catégorie sauvegardée','success');
+}
+
+function deleteCat(id){
+  if(!confirm('Supprimer cette catégorie ?')) return;
+  categories = categories.filter(c=>c.id!==id);
+  saveAll(); renderAdminCats(); renderHomeCats();
+  showToast('🗑 Catégorie supprimée','info');
+}
+
+function renderAdminProducts(){
+  const catMap={}; categories.forEach(c=>catMap[c.id]=c);
+  document.getElementById('adm-products-table').innerHTML = products.map(p=>`
+    <tr>
+      <td>${p.icon} ${p.name}</td>
+      <td>${catMap[p.catId]?.name||'-'}</td>
+      <td style="color:var(--neon-green)">€${p.price}</td>
+      <td><span class="tag" style="background:rgba(155,93,229,0.1);color:var(--neon-violet)">${p.inputType}</span></td>
+      <td style="display:flex;gap:8px">
+        <button class="copy-btn" onclick="editProduct('${p.id}')">✏️ ÉDITER</button>
+        <button class="copy-btn" style="color:var(--neon-pink)" onclick="deleteProduct('${p.id}')">🗑 SUP</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openProductModal(id=null){
+  document.getElementById('product-edit-id').value=id||'';
+  const p = id ? products.find(x=>x.id===id) : null;
+  document.getElementById('product-modal-title').textContent = id?'Modifier produit':'Nouveau produit';
+  document.getElementById('product-name').value=p?.name||'';
+  document.getElementById('product-price').value=p?.price||'';
+  document.getElementById('product-desc-input').value=p?.desc||'';
+  document.getElementById('product-icon').value=p?.icon||'📦';
+  document.getElementById('product-input-type').value=p?.inputType||'both';
+  document.getElementById('product-input-hint').value=p?.inputHint||'';
+  document.getElementById('product-active').checked = p?.active!==false;
+  // Populate cat select
+  const sel=document.getElementById('product-cat');
+  sel.innerHTML=categories.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  if(p) sel.value=p.catId;
+  openModal('modal-product');
+}
+function editProduct(id){ openProductModal(id); }
+
+function saveProduct(){
+  const id=document.getElementById('product-edit-id').value;
+  const obj={
+    id:id||('p'+Date.now()),
+    catId:document.getElementById('product-cat').value,
+    name:document.getElementById('product-name').value,
+    price:parseFloat(document.getElementById('product-price').value)||0,
+    desc:document.getElementById('product-desc-input').value,
+    icon:document.getElementById('product-icon').value,
+    inputType:document.getElementById('product-input-type').value,
+    inputHint:document.getElementById('product-input-hint').value,
+    active:document.getElementById('product-active').checked,
+  };
+  if(id){ const i=products.findIndex(p=>p.id===id); products[i]=obj; }
+  else products.push(obj);
+  saveAll(); closeModal('modal-product'); renderAdminProducts(); renderShop(); renderHomeCats();
+  showToast('✅ Produit sauvegardé','success');
+}
+
+function deleteProduct(id){
+  if(!confirm('Supprimer ce produit ?')) return;
+  products=products.filter(p=>p.id!==id);
+  saveAll(); renderAdminProducts(); renderShop();
+  showToast('🗑 Produit supprimé','info');
+}
+
+function loadPaymentSettings(){
+  document.getElementById('pay-sol').value=paymentSettings.sol;
+  document.getElementById('pay-btc').value=paymentSettings.btc;
+  document.getElementById('pay-ltc').value=paymentSettings.ltc;
+  document.getElementById('pay-viro').value=paymentSettings.viro;
+}
+
+function savePaymentSettings(){
+  paymentSettings.sol=document.getElementById('pay-sol').value;
+  paymentSettings.btc=document.getElementById('pay-btc').value;
+  paymentSettings.ltc=document.getElementById('pay-ltc').value;
+  paymentSettings.viro=document.getElementById('pay-viro').value;
+  saveAll(); showToast('✅ Paramètres de paiement sauvegardés','success');
+}
+
+function loadSettings(){
+  document.getElementById('set-admin-uid').value=appSettings.adminUid;
+  document.getElementById('set-bot-token').value=appSettings.botToken;
+  document.getElementById('set-bot-username').value=appSettings.botUsername||'';
+}
+
+function saveSettings(){
+  appSettings.adminUid=document.getElementById('set-admin-uid').value;
+  appSettings.botToken=document.getElementById('set-bot-token').value;
+  appSettings.botUsername=document.getElementById('set-bot-username').value.replace('@','').trim();
+  const newPwd=document.getElementById('set-admin-pwd').value;
+  if(newPwd) appSettings.adminPwd=newPwd;
+  saveAll(); showToast('✅ Paramètres sauvegardés','success');
+}
+
+// ═══════════════════════════════════
+// MODALS
+// ═══════════════════════════════════
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function openLoginModal(){ openModal('modal-login'); }
+
+// Click overlay to close
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  el.addEventListener('click',e=>{ if(e.target===el) el.classList.remove('open'); });
+});
+
+// ═══════════════════════════════════
+// TOAST
+// ═══════════════════════════════════
+let toastTimer;
+function showToast(msg, type='info'){
+  const t=document.getElementById('toast');
+  const icons={success:'✅',error:'❌',info:'ℹ️'};
+  t.innerHTML=`<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+  t.className=`toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+// ═══════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════
+function copyText(txt){
+  navigator.clipboard?.writeText(txt).then(()=>showToast('📋 Adresse copiée !','success')).catch(()=>{});
+}
+
+// ═══════════════════════════════════
+// INIT
+// ═══════════════════════════════════
+checkStoredSession();
+renderHomeCats();
+observeReveals();
+
+// Telegram WebApp init
+if(window.Telegram?.WebApp){
+  const tg = window.Telegram.WebApp;
+  tg.ready();
+  tg.expand();
+  if(tg.initDataUnsafe?.user){
+    loginUser({
+      id: tg.initDataUnsafe.user.id,
+      name: (tg.initDataUnsafe.user.first_name+' '+(tg.initDataUnsafe.user.last_name||'')).trim(),
+      username: tg.initDataUnsafe.user.username||'',
+      photo: tg.initDataUnsafe.user.photo_url||null
+    });
+  }
+}
+
+// Admin page accessible via URL param or nav
+function checkAdminRoute(){
+  if(location.hash==='#admin'||location.search.includes('admin')) showPage('admin');
+}
+checkAdminRoute();
+
+// Stats counter animation
+function animateCount(el, target){
+  let c=0; const step=Math.ceil(target/60);
+  const t=setInterval(()=>{ c=Math.min(c+step,target); el.textContent=c.toLocaleString(); if(c>=target)clearInterval(t); },16);
+}
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    animateCount(document.getElementById('stat-orders'),1247);
+  },400);
+});
+</script>
+</body>
+</html>
