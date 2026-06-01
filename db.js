@@ -98,11 +98,19 @@ module.exports = {
     write(d);
   },
   getMemberPoints: (userId) => {
-    const orders = read().orders;
+    const d = read();
+    const orders = d.orders;
     const total = orders
       .filter(o => String(o.userId) === String(userId) && o.status === 'confirmed')
       .reduce((s, o) => s + (o.price || 0), 0);
-    return Math.floor(total / 5);
+    const base = Math.floor(total / 5);
+    const member = d.members.find(m => String(m.id) === String(userId));
+    return base + (member?.bonusPoints || 0);
+  },
+  adjustMemberPoints: (userId, amount) => {
+    const d = read();
+    const m = d.members.find(x => String(x.id) === String(userId));
+    if (m) { m.bonusPoints = (m.bonusPoints || 0) + amount; write(d); }
   },
 
   // Settings

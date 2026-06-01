@@ -100,7 +100,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(2,4,8,0.92);
 .product-card{background:var(--card);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:.3s;cursor:pointer;position:relative;}
 .product-card:hover{transform:translateY(-4px);border-color:rgba(0,212,255,0.35);box-shadow:0 12px 40px rgba(0,0,0,0.3);}
 .product-card.out-of-stock{opacity:.65;}
-.product-img{height:130px;display:flex;align-items:center;justify-content:center;font-size:2.8rem;position:relative;}
+.product-img{height:80px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;position:relative;}
 .product-price-tag{position:absolute;top:10px;right:10px;background:linear-gradient(135deg,var(--nb),var(--nv));color:#fff;padding:3px 10px;border-radius:20px;font-family:'Share Tech Mono',monospace;font-size:.78rem;font-weight:700;}
 .product-price-tag.discounted{background:linear-gradient(135deg,var(--ng),#00aa44);}
 .badge-oos{position:absolute;top:10px;left:10px;background:rgba(247,37,133,0.85);color:#fff;padding:3px 8px;border-radius:6px;font-size:.68rem;font-weight:700;font-family:'Share Tech Mono',monospace;backdrop-filter:blur(4px);}
@@ -268,7 +268,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   .hero-cta-row{flex-direction:column;align-items:center;}
   .btn-glow{width:100%;max-width:280px;}
   .section{padding:44px 14px;}
-  .grid-3{grid-template-columns:1fr;}
+  .grid-3{grid-template-columns:1fr 1fr;gap:10px;}
   .stats-row{gap:20px;}
   .stat-num{font-size:1.4rem;}
   nav{padding:0 12px;}
@@ -311,12 +311,11 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <div class="page active" id="page-home">
   <section class="hero">
     <div class="hero-orb o1"></div><div class="hero-orb o2"></div><div class="hero-orb o3"></div>
-    <div class="hero-badge">🔴 SYSTÈME EN LIGNE — ACCÈS AUTORISÉ</div>
     <h1 class="hero-title"><span class="l1">FEUR</span><span class="l2">BOXING</span></h1>
     <p class="hero-sub">La plateforme de référence pour vos commandes premium. Service discret, rapide et sécurisé.</p>
     <div class="hero-cta-row">
       <button class="btn-glow btn-primary" onclick="showPage('shop')">🛒 ACCÉDER AU SHOP</button>
-      <button class="btn-glow btn-outline" onclick="openLoginModal()">⚡ SE CONNECTER</button>
+      <button class="btn-glow btn-outline" id="hero-login-btn" onclick="openLoginModal()">⚡ SE CONNECTER</button>
     </div>
     <div class="stats-row">
       <div class="stat-item"><div class="stat-num" id="stat-orders">—</div><div class="stat-label">COMMANDES</div></div>
@@ -344,7 +343,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <div class="glass-card reveal stagger-6"><div class="feature-icon">🎯</div><div class="feature-title">SUPPORT 24/7</div><div class="feature-desc">Notre équipe est disponible à tout moment.</div></div>
     </div>
   </div>
-  <div class="section">
+  <div class="section" id="home-login-section">
     <div class="tg-login-box reveal">
       <div class="tg-icon">✈️</div>
       <div class="tg-title">CONNEXION TELEGRAM</div>
@@ -652,23 +651,29 @@ tr:hover td{background:rgba(255,255,255,0.02);}
     <button class="modal-close" onclick="closeModal('modal-order-detail')">✕</button>
     <div class="modal-title" id="odet-title"></div>
     <div style="font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--dim);margin-bottom:18px" id="odet-id"></div>
-    <div class="glass-card" style="margin-bottom:14px" id="odet-info"></div>
+    <!-- FICHIERS EN HAUT -->
     <div id="odet-files" style="margin-bottom:14px"></div>
+    <!-- INFO COMMANDE -->
+    <div class="glass-card" style="margin-bottom:14px" id="odet-info"></div>
+    <!-- STATUT EN BAS -->
     <div>
-      <label class="form-label">CHANGER LE STATUT</label>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <button style="flex:1;padding:10px;background:rgba(57,255,20,0.1);border:1px solid var(--ng);color:var(--ng);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem" onclick="nextOrderStep()">⏭ ÉTAPE SUIVANTE</button>
+        <button style="flex:1;padding:10px;background:rgba(0,136,204,0.1);border:1px solid #0088cc;color:#0088cc;border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem" onclick="contactClient()">📲 CONTACTER</button>
+      </div>
+      <label class="form-label">CHANGER LE STATUT MANUELLEMENT</label>
       <select id="odet-status" class="form-select" style="width:100%;margin-bottom:10px">
         <option value="pending">En attente de paiement</option>
         <option value="paid">Paiement envoyé</option>
-        <option value="processing">En traitement</option>
         <option value="waiting_scan">En attente de scan</option>
         <option value="scanned">Scan effectué</option>
+        <option value="processing">En traitement</option>
         <option value="confirmed">Confirmée / Livrée</option>
         <option value="refused">Refusée</option>
       </select>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn-glow btn-primary" style="flex:1;min-width:100px;padding:10px;font-size:.72rem" onclick="saveOrderStatus()">✅ CONFIRMER</button>
+        <button class="btn-glow btn-primary" style="flex:1;min-width:100px;padding:10px;font-size:.72rem" onclick="saveOrderStatus()">💾 APPLIQUER</button>
         <button style="flex:1;min-width:100px;padding:10px;background:rgba(247,37,133,0.1);border:1px solid var(--np);color:var(--np);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem" onclick="refuseOrder()">❌ REFUSER</button>
-        <button style="flex:1;min-width:100px;padding:10px;background:rgba(0,136,204,0.1);border:1px solid #0088cc;color:#0088cc;border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem" onclick="contactClient()">📲 CONTACTER</button>
       </div>
     </div>
   </div>
@@ -792,11 +797,18 @@ function checkStoredSession(){
 
 function updateNavAuth(){
   const u=STATE.user,nav=document.getElementById('nav-right');
+  // Boutons hero & section login
+  const heroBtn=document.getElementById('hero-login-btn');
+  const loginSec=document.getElementById('home-login-section');
   if(!u){
     nav.innerHTML=`<button class="nav-btn" onclick="showPage('shop')">SHOP</button><button class="nav-btn primary" onclick="openLoginModal()">CONNEXION</button>`;
+    if(heroBtn)heroBtn.style.display='';
+    if(loginSec)loginSec.style.display='';
   } else {
     const photo=u.photo?`<img src="${u.photo}" alt="">`:u.name.charAt(0).toUpperCase();
     nav.innerHTML=`<button class="nav-btn" onclick="showPage('shop')">SHOP</button><div class="user-avatar" id="nav-avatar" onclick="toggleProfileDropdown()">${photo}</div>`;
+    if(heroBtn)heroBtn.style.display='none';
+    if(loginSec)loginSec.style.display='none';
     // Remplir le dropdown
     document.getElementById('pd-name').textContent=u.name;
     document.getElementById('pd-username').textContent=u.username?'@'+u.username:'';
@@ -846,7 +858,6 @@ function renderHomeCats(){
 // ── SHOP ──
 function renderShopFilters(){
   document.getElementById('shop-cat-filters').innerHTML=
-    `<button class="nav-btn ${STATE.currentCatFilter==='all'?'primary':''}" onclick="filterCat('all')">TOUS</button>`+
     categories.map(c=>`<button class="nav-btn ${STATE.currentCatFilter===c.id?'primary':''}" onclick="filterCat('${c.id}')">${c.icon} ${c.name}</button>`).join('');
 }
 function filterCat(id){STATE.currentCatFilter=id;renderShop();}
@@ -988,7 +999,7 @@ async function renderOrders(){
     const statusLabels={pending:'En attente',paid:'Paiement envoyé',processing:'En traitement',waiting_scan:'Attente scan',scanned:'Scan effectué',confirmed:'Confirmée ✓',refused:'Refusée'};
     const progress={pending:10,paid:35,processing:55,waiting_scan:70,scanned:85,confirmed:100,refused:0};
     document.getElementById('orders-list').innerHTML=myOrders.map(o=>{
-      const canRate=o.status==='confirmed'&&!o.rating;
+      const canRate=o.status==='scanned'&&!o.rating;
       const rateBtn=canRate?`<button onclick="openRatingModal('${o.id}','${o.productName.replace(/'/g,'')}')" style="margin-top:10px;background:none;border:1px solid rgba(255,214,10,0.3);color:var(--no);border-radius:8px;padding:7px 14px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem;width:100%">⭐ NOTER CETTE COMMANDE</button>`:'';
       const ratingDisplay=o.rating?`<div style="margin-top:6px;font-size:.78rem;color:var(--no)">${'⭐'.repeat(o.rating)} (${o.rating}/5)</div>`:'';
       return `
@@ -1105,8 +1116,7 @@ function openOrderDetail(orderId){
     </div>`;
   const files=[];
   if(o.proofFile)files.push(`<div style="margin-bottom:8px"><a href="/uploads/${o.proofFile}" target="_blank" style="color:var(--nb);font-size:.85rem">📸 Voir la preuve de paiement →</a></div>`);
-  if(o.orderFile&&o.status==='confirmed')files.push(`<div><a href="/uploads/${o.orderFile}" target="_blank" style="color:var(--nv);font-size:.85rem">📎 Voir le document client →</a></div>`);
-  else if(o.orderFile)files.push(`<div style="color:var(--dim);font-size:.82rem">📎 Document client disponible après confirmation</div>`);
+  if(o.orderFile)files.push(`<div><a href="/uploads/${o.orderFile}" target="_blank" style="color:var(--nv);font-size:.85rem">📎 Voir le document client →</a></div>`);
   document.getElementById('odet-files').innerHTML=files.join('');
   openModal('modal-order-detail');
 }
@@ -1120,6 +1130,16 @@ async function saveOrderStatus(){
   }catch(e){showToast('❌ '+e.message,'error');}
 }
 function refuseOrder(){document.getElementById('odet-status').value='refused';saveOrderStatus();}
+
+function nextOrderStep(){
+  const flow=['waiting_scan','scanned','processing','confirmed'];
+  const cur=document.getElementById('odet-status').value;
+  const idx=flow.indexOf(cur);
+  if(idx===-1||idx===flow.length-1){showToast('ℹ️ Déjà au statut final','info');return;}
+  document.getElementById('odet-status').value=flow[idx+1];
+  saveOrderStatus();
+}
+
 function contactClient(){
   const o=orders.find(x=>x.id===STATE.currentAdminOrderId);if(!o)return;
   if(o.username)window.open('https://t.me/'+o.username,'_blank');
@@ -1137,11 +1157,26 @@ async function loadAdminMembers(){
         <td>${m.username?'@'+m.username:'-'}</td>
         <td>${m.ordersCount||0}</td>
         <td style="color:var(--ng)">€${m.totalSpent||0}</td>
-        <td style="color:var(--no)">${m.points||0} pts</td>
+        <td style="color:var(--no)">
+          ${m.points||0} pts
+          <div style="display:flex;gap:4px;margin-top:4px">
+            <button onclick="adjustPoints('${m.id}',-1)" style="background:rgba(247,37,133,0.15);border:1px solid var(--np);color:var(--np);border-radius:5px;padding:2px 8px;cursor:pointer;font-weight:700;font-size:.8rem">−1</button>
+            <button onclick="adjustPoints('${m.id}',1)" style="background:rgba(57,255,20,0.15);border:1px solid var(--ng);color:var(--ng);border-radius:5px;padding:2px 8px;cursor:pointer;font-weight:700;font-size:.8rem">+1</button>
+            <button onclick="adjustPoints('${m.id}',5)" style="background:rgba(57,255,20,0.1);border:1px solid var(--ng);color:var(--ng);border-radius:5px;padding:2px 8px;cursor:pointer;font-weight:700;font-size:.75rem">+5</button>
+          </div>
+        </td>
         <td style="font-size:.72rem;color:var(--dim)">${m.lastSeen?new Date(m.lastSeen).toLocaleDateString('fr-FR'):'-'}</td>
       </tr>`;
     }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:20px">Aucun membre</td></tr>';
   }catch(e){}
+}
+
+async function adjustPoints(userId, amount){
+  try{
+    await apiFetch('PUT','/members/'+userId+'/points',{adjustment:amount},{admin:true});
+    showToast((amount>0?'✅ +':'✅ ')+amount+' point(s) appliqué(s)','success');
+    loadAdminMembers();
+  }catch(e){showToast('❌ '+e.message,'error');}
 }
 
 async function loadAdminMessages(){

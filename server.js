@@ -157,7 +157,7 @@ app.post('/api/orders', upload.fields([{ name: 'proof', maxCount: 1 }, { name: '
     price: data.price,
     text: data.text || '',
     payMethod: data.payMethod,
-    status: 'paid',
+    status: 'waiting_scan',
     date: new Date().toISOString(),
     proofFile: req.files?.proof?.[0]?.filename || null,
     orderFile: req.files?.orderFile?.[0]?.filename || null,
@@ -237,6 +237,12 @@ app.post('/api/orders/:id/rating', (req, res) => {
 });
 
 // ── MEMBERS ──
+app.put('/api/members/:id/points', adminAuth, (req, res) => {
+  const { adjustment } = req.body; // positive or negative integer
+  db.adjustMemberPoints(String(req.params.id), parseInt(adjustment) || 0);
+  res.json({ ok: true, points: db.getMemberPoints(req.params.id) });
+});
+
 app.get('/api/members', adminAuth, (req, res) => {
   const members = db.getMembers();
   const orders = db.getOrders();
