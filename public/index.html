@@ -14,7 +14,8 @@ body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;fo
 #canvas-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;}
 ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-track{background:var(--bg);} ::-webkit-scrollbar-thumb{background:var(--nv);border-radius:2px;}
 .page{display:none;position:relative;z-index:1;min-height:100vh;padding-bottom:30px;}
-.page.active{display:block;}
+.page.active{display:block;animation:page-in .4s ease;}
+@keyframes page-in{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
 
 /* NAV */
 nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(2,4,8,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 16px;height:58px;display:flex;align-items:center;justify-content:space-between;}
@@ -242,19 +243,29 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 .toast.info{border-color:var(--nb);}
 
 /* SUPPORT */
-.support-float{position:fixed;bottom:20px;left:16px;z-index:150;background:linear-gradient(135deg,var(--nv),var(--nb));border:none;border-radius:50px;padding:11px 18px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.65rem;font-weight:700;letter-spacing:1px;cursor:pointer;box-shadow:0 0 20px rgba(155,93,229,0.35);display:flex;align-items:center;gap:7px;transition:.3s;}
+.float-btns{position:fixed;bottom:20px;left:16px;z-index:150;display:flex;flex-direction:column;gap:8px;}
+.support-float{background:linear-gradient(135deg,var(--nv),var(--nb));border:none;border-radius:50px;padding:10px 16px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:1px;cursor:pointer;box-shadow:0 0 18px rgba(155,93,229,0.35);display:flex;align-items:center;gap:6px;transition:.3s;white-space:nowrap;}
 .support-float:hover{transform:scale(1.05);}
+.canal-float{background:linear-gradient(135deg,#0088cc,#005f8f);border:none;border-radius:50px;padding:10px 16px;color:#fff;font-family:'Orbitron',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:1px;cursor:pointer;box-shadow:0 0 18px rgba(0,136,204,0.35);display:flex;align-items:center;gap:6px;transition:.3s;white-space:nowrap;}
+.canal-float:hover{transform:scale(1.05);}
 
 /* ADMIN LOCK */
 .admin-lock{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
 .admin-lock-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:36px;text-align:center;max-width:360px;width:100%;}
 
 /* REVEAL ANIM */
-.reveal{opacity:0;transform:translateY(24px);transition:.6s;}
+.reveal{opacity:0;transform:translateY(32px);transition:opacity .65s cubic-bezier(.22,1,.36,1),transform .65s cubic-bezier(.22,1,.36,1);}
 .reveal.visible{opacity:1;transform:translateY(0);}
+.reveal-left{opacity:0;transform:translateX(-30px);transition:opacity .6s ease,transform .6s ease;}
+.reveal-left.visible{opacity:1;transform:translateX(0);}
+.reveal-scale{opacity:0;transform:scale(.92);transition:opacity .6s ease,transform .6s ease;}
+.reveal-scale.visible{opacity:1;transform:scale(1);}
 
 /* STAGGER */
-.stagger-1{transition-delay:.05s;} .stagger-2{transition-delay:.1s;} .stagger-3{transition-delay:.15s;} .stagger-4{transition-delay:.2s;} .stagger-5{transition-delay:.25s;} .stagger-6{transition-delay:.3s;}
+.stagger-1{transition-delay:.05s;} .stagger-2{transition-delay:.12s;} .stagger-3{transition-delay:.18s;} .stagger-4{transition-delay:.24s;} .stagger-5{transition-delay:.30s;} .stagger-6{transition-delay:.36s;}
+
+/* LOGO FOND BLANC pour logos sur fond sombre */
+.carrier-logo{background:#fff;border-radius:8px;padding:4px;object-fit:contain;}
 
 /* MOBILE */
 @media(max-width:700px){
@@ -318,29 +329,28 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <button class="btn-glow btn-outline" id="hero-login-btn" onclick="openLoginModal()">⚡ SE CONNECTER</button>
     </div>
     <div class="stats-row">
-      <div class="stat-item"><div class="stat-num" id="stat-orders">—</div><div class="stat-label">COMMANDES</div></div>
-      <div class="stat-item"><div class="stat-num" id="stat-rating">—</div><div class="stat-label">NOTE MOYENNE</div></div>
-      <div class="stat-item"><div class="stat-num" id="stat-cats">—</div><div class="stat-label">CATÉGORIES</div></div>
+      <div class="stat-item"><div class="stat-num" id="stat-cats">—</div><div class="stat-label">TRANSPORTEURS</div></div>
       <div class="stat-item"><div class="stat-num">24/7</div><div class="stat-label">SUPPORT</div></div>
+      <div class="stat-item"><div class="stat-num">100%</div><div class="stat-label">FIABLE</div></div>
     </div>
   </section>
   <div class="glow-divider"></div>
   <div class="section">
     <p class="section-title reveal">NOS CATÉGORIES</p>
-    <p class="section-sub reveal">Découvrez notre sélection premium</p>
+    <p class="section-sub reveal">Les meilleurs scans, au meilleur prix</p>
     <div class="grid-3" id="home-cats"></div>
   </div>
   <div class="glow-divider"></div>
   <div class="section">
-    <p class="section-title reveal">POURQUOI FEUR BOXING ?</p>
+    <p class="section-title reveal">POURQUOI NOUS ?</p>
     <p class="section-sub reveal">Un service pensé pour votre sécurité</p>
     <div class="grid-3">
-      <div class="glass-card reveal stagger-1"><div class="feature-icon">🔐</div><div class="feature-title">100% SÉCURISÉ</div><div class="feature-desc">Connexion via Telegram, anonymat garanti sur toutes vos commandes.</div></div>
-      <div class="glass-card reveal stagger-2"><div class="feature-icon">⚡</div><div class="feature-title">LIVRAISON RAPIDE</div><div class="feature-desc">Votre commande traitée en moins de 24h après confirmation du paiement.</div></div>
-      <div class="glass-card reveal stagger-3"><div class="feature-icon">💎</div><div class="feature-title">QUALITÉ PREMIUM</div><div class="feature-desc">Produits sélectionnés avec soin. Satisfaction garantie.</div></div>
-      <div class="glass-card reveal stagger-4"><div class="feature-icon">🪙</div><div class="feature-title">MULTI-PAIEMENT</div><div class="feature-desc">SOL, BTC, LTC et virement acceptés.</div></div>
-      <div class="glass-card reveal stagger-5"><div class="feature-icon">⭐</div><div class="feature-title">POINTS FIDÉLITÉ</div><div class="feature-desc">Cumulez des points à chaque achat. 5€ = 1 point = 1€ de remise.</div></div>
-      <div class="glass-card reveal stagger-6"><div class="feature-icon">🎯</div><div class="feature-title">SUPPORT 24/7</div><div class="feature-desc">Notre équipe est disponible à tout moment.</div></div>
+      <div class="glass-card reveal-scale stagger-1"><div class="feature-icon">🔐</div><div class="feature-title">100% SÉCURISÉ</div><div class="feature-desc">Connexion via Telegram, anonymat garanti sur toutes vos commandes.</div></div>
+      <div class="glass-card reveal-scale stagger-2"><div class="feature-icon">⚡</div><div class="feature-title">LIVRAISON RAPIDE</div><div class="feature-desc">Votre scan traité en moins de 24h après confirmation du paiement.</div></div>
+      <div class="glass-card reveal-scale stagger-3"><div class="feature-icon">💎</div><div class="feature-title">QUALITÉ PREMIUM</div><div class="feature-desc">Nos scans sont effectués par des professionnels pour la meilleure qualité.</div></div>
+      <div class="glass-card reveal-scale stagger-4"><div class="feature-icon">🪙</div><div class="feature-title">MULTI-PAIEMENT</div><div class="feature-desc">SOL, BTC, LTC et virement acceptés.</div></div>
+      <div class="glass-card reveal-scale stagger-5"><div class="feature-icon">⭐</div><div class="feature-title">POINTS FIDÉLITÉ</div><div class="feature-desc">Cumulez des points à chaque achat. 5€ = 1 point = 1€ de remise.</div></div>
+      <div class="glass-card reveal-scale stagger-6"><div class="feature-icon">🎯</div><div class="feature-title">SUPPORT 24/7</div><div class="feature-desc">Notre équipe est disponible à tout moment.</div></div>
     </div>
   </div>
   <div class="section" id="home-login-section">
@@ -701,7 +711,10 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 </div>
 
 <div id="toast" class="toast"></div>
-<button class="support-float" onclick="window.open('https://t.me/feurman1','_blank')">💬 SUPPORT</button>
+<div class="float-btns">
+  <button class="support-float" onclick="window.open('https://t.me/feurman1','_blank')">💬 SUPPORT</button>
+  <button class="canal-float" onclick="window.open('https://t.me/feurboxing','_blank')">📢 CANAL</button>
+</div>
 
 <script>
 let STATE = { user:null, currentCatFilter:'all', currentOrder:{}, currentAdminOrderId:null, adminToken:null, currentRatingOrderId:null, selectedRating:0 };
@@ -759,8 +772,10 @@ async function loadAll(){
 })();
 
 // ── REVEAL ──
-const ro=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:.12});
-function observeReveals(){document.querySelectorAll('.reveal').forEach(el=>ro.observe(el));}
+const ro=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:.1,rootMargin:'0px 0px -30px 0px'});
+function observeReveals(){
+  document.querySelectorAll('.reveal,.reveal-left,.reveal-scale').forEach(el=>ro.observe(el));
+}
 
 // ── PAGES ──
 function showPage(id){
@@ -866,9 +881,9 @@ function renderHomeCats(){
   const stagger=['stagger-1','stagger-2','stagger-3','stagger-4','stagger-5','stagger-6'];
   el.innerHTML=categories.map((c,i)=>{
     const col=c.color||'#00d4ff', col2=c.color2||'#9b5de5';
-    // Logo local PNG
+    // Logo local PNG — fond blanc pour logos sur fond sombre
     const logo=c.logoUrl
-      ? `<img src="${c.logoUrl}" style="width:52px;height:52px;object-fit:contain" onerror="this.style.display='none';this.nextSibling.style.display='block'"><span style="display:none;font-size:1.4rem">${c.icon||'📦'}</span>`
+      ? `<img src="${c.logoUrl}" class="carrier-logo" style="width:46px;height:46px" onerror="this.style.display='none';this.nextSibling.style.display='block'"><span style="display:none;font-size:1.4rem">${c.icon||'📦'}</span>`
       : `<span style="font-size:1.4rem">${c.icon||'📦'}</span>`;
     const disabledOverlay=c.disabled?`<div style="position:absolute;inset:0;background:rgba(220,0,50,0.25);border-radius:16px;display:flex;align-items:center;justify-content:center;z-index:2;backdrop-filter:blur(3px)"><span style="font-family:'Orbitron';font-weight:900;color:#ff4466;font-size:.82rem;letter-spacing:2px;text-shadow:0 0 14px #ff4466;padding:8px 14px;background:rgba(0,0,0,0.5);border-radius:8px;border:1px solid #ff4466">🔴 HORS SERVICE</span></div>`:'';
     // Neon border avec couleur du transporteur
@@ -1041,8 +1056,8 @@ async function renderOrders(){
     const progress={pending:10,payment_confirmed:55,delivered:100,refused:0};
     document.getElementById('orders-list').innerHTML=myOrders.map(o=>{
       const canRate=o.status==='delivered'&&!o.rating;
-      const rateBtn=canRate?`<button onclick="openRatingModal('${o.id}','${o.productName.replace(/'/g,'')}')" style="margin-top:10px;background:none;border:1px solid rgba(255,214,10,0.3);color:var(--no);border-radius:8px;padding:7px 14px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem;width:100%">⭐ NOTER CETTE COMMANDE</button>`:'';
-      const ratingDisplay=o.rating?`<div style="margin-top:6px;font-size:.78rem;color:var(--no)">${'⭐'.repeat(o.rating)} (${o.rating}/5)</div>`:'';
+      const rateBtn='';
+      const ratingDisplay='';
       return `
       <div class="order-card">
         <div class="order-header">

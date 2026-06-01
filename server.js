@@ -34,16 +34,9 @@ function startBot() {
     // Délai de 3s au démarrage pour laisser l'ancienne instance Telegram expirer
     bot = new TelegramBot(settings.botToken, { polling: { autoStart: false, interval: 2000 } });
 
-    // Gestion d'erreur polling — évite le crash en boucle sur 409
+    // Gestion d'erreur polling — log sans crash
     bot.on('polling_error', (err) => {
-      if (err.message && err.message.includes('409')) {
-        console.log('⚠️  Conflit 409 détecté — relance du polling dans 10s...');
-        bot.stopPolling().catch(()=>{});
-        if (botRetryTimer) clearTimeout(botRetryTimer);
-        botRetryTimer = setTimeout(() => bot.startPolling(), 10000);
-      } else {
-        console.error('Polling error:', err.message);
-      }
+      console.error('Polling error (ignoré):', err.message);
     });
 
     // Démarrage différé (laisse l'ancienne instance mourir)
