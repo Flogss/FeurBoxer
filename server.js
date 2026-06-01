@@ -312,7 +312,7 @@ app.get('/api/stats', adminAuth, (req, res) => {
   const orders = db.getOrders();
   const members = db.getMembers();
   const revenue = orders.filter(o => o.status === 'delivered').reduce((s, o) => s + o.price, 0);
-  const pending = orders.filter(o => o.status === 'paid').length;
+  const pending = orders.filter(o => o.status === 'pending').length;
   const confirmed = orders.filter(o => o.status === 'delivered').length;
 
   const ratings = orders.filter(o => o.rating).map(o => o.rating);

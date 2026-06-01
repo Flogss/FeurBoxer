@@ -1005,7 +1005,7 @@ function goOrderStep(n){
 }
 
 async function submitOrder(){
-  if(!STATE.currentOrder.proofFile){showToast('⚠️ Uploadez un bordereau d'envoi','error');return;}
+  if(!STATE.currentOrder.proofFile){showToast("⚠️ Uploadez un bordereau d'envoi",'error');return;}
   const btn=document.getElementById('submit-order-btn');
   btn.disabled=true;btn.textContent='⏳ ENVOI EN COURS...';
   try{
