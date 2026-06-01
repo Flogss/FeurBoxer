@@ -14,15 +14,16 @@ const DEFAULT_DB = {
     { id: 'cat6', name: 'Formations', icon: '🎓', desc: "Accès aux cours vidéo et programmes d'entraînement", color: 'pink' }
   ],
   products: [
-    { id: 'p1', catId: 'cat1', name: 'Gants Pro 12oz', price: 85, icon: '🥊', desc: 'Gants professionnels cuir véritable, idéaux compétition', inputType: 'text', inputHint: 'Entrez votre tour de main en cm', active: true },
-    { id: 'p2', catId: 'cat1', name: 'Bandages Mexicains', price: 25, icon: '🩹', desc: 'Bandages élastiques 4.5m, protection maximale', inputType: 'text', inputHint: 'Taille : S/M/L/XL', active: true },
-    { id: 'p3', catId: 'cat2', name: 'Session Coaching x5', price: 200, icon: '🏋️', desc: "5 sessions d'1h avec un coach certifié FBF", inputType: 'both', inputHint: 'Indiquez votre niveau et disponibilités', active: true },
-    { id: 'p4', catId: 'cat3', name: 'Licence Fédérale', price: 120, icon: '📋', desc: 'Obtention ou renouvellement de votre licence officielle', inputType: 'file', inputHint: "Uploadez une photo de votre pièce d'identité", active: true },
-    { id: 'p5', catId: 'cat4', name: 'Pack Protéines 3 mois', price: 150, icon: '💊', desc: 'Whey protein + créatine + BCAA formule exclusive', inputType: 'text', inputHint: 'Entrez votre poids et objectif', active: true },
-    { id: 'p6', catId: 'cat5', name: 'T-shirt FEUR BOXING', price: 45, icon: '👕', desc: 'T-shirt technique coton/polyester, logo brodé', inputType: 'text', inputHint: 'Taille (XS/S/M/L/XL/XXL) et couleur', active: true },
-    { id: 'p7', catId: 'cat6', name: 'Formation Boxe Thaï', price: 99, icon: '🎓', desc: '12h de contenu vidéo, débutant à avancé', inputType: 'text', inputHint: 'Votre email pour accès à la plateforme', active: true }
+    { id: 'p1', catId: 'cat1', name: 'Gants Pro 12oz', price: 85, icon: '🥊', desc: 'Gants professionnels cuir véritable, idéaux compétition', inputType: 'text', inputHint: 'Entrez votre tour de main en cm', active: true, outOfStock: false, discount: 0 },
+    { id: 'p2', catId: 'cat1', name: 'Bandages Mexicains', price: 25, icon: '🩹', desc: 'Bandages élastiques 4.5m, protection maximale', inputType: 'text', inputHint: 'Taille : S/M/L/XL', active: true, outOfStock: false, discount: 0 },
+    { id: 'p3', catId: 'cat2', name: 'Session Coaching x5', price: 200, icon: '🏋️', desc: "5 sessions d'1h avec un coach certifié FBF", inputType: 'both', inputHint: 'Indiquez votre niveau et disponibilités', active: true, outOfStock: false, discount: 0 },
+    { id: 'p4', catId: 'cat3', name: 'Licence Fédérale', price: 120, icon: '📋', desc: 'Obtention ou renouvellement de votre licence officielle', inputType: 'file', inputHint: "Uploadez une photo de votre pièce d'identité", active: true, outOfStock: false, discount: 0 },
+    { id: 'p5', catId: 'cat4', name: 'Pack Protéines 3 mois', price: 150, icon: '💊', desc: 'Whey + créatine + BCAA formule exclusive', inputType: 'text', inputHint: 'Entrez votre poids et objectif', active: true, outOfStock: false, discount: 0 },
+    { id: 'p6', catId: 'cat5', name: 'T-shirt FEUR BOXING', price: 45, icon: '👕', desc: 'T-shirt technique coton/polyester, logo brodé', inputType: 'text', inputHint: 'Taille et couleur', active: true, outOfStock: false, discount: 0 },
+    { id: 'p7', catId: 'cat6', name: 'Formation Boxe Thaï', price: 99, icon: '🎓', desc: '12h de contenu vidéo, débutant à avancé', inputType: 'text', inputHint: 'Votre email pour accès à la plateforme', active: true, outOfStock: false, discount: 0 }
   ],
   orders: [],
+  members: [],
   settings: {
     adminUid: '5220151803',
     botToken: '8835439612:AAGio5SpIsS7w1NyN30b96RCn8OPgQLJO0o',
@@ -46,9 +47,11 @@ function read() {
   ensureDir();
   if (!fs.existsSync(DB_PATH)) {
     fs.writeFileSync(DB_PATH, JSON.stringify(DEFAULT_DB, null, 2));
-    return DEFAULT_DB;
+    return JSON.parse(JSON.stringify(DEFAULT_DB));
   }
-  return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  const d = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  if (!d.members) d.members = [];
+  return d;
 }
 
 function write(data) {
@@ -74,6 +77,33 @@ module.exports = {
   getOrderById: (id) => read().orders.find(o => o.id === id),
   addOrder: (order) => { const d = read(); d.orders.unshift(order); write(d); },
   updateOrder: (order) => { const d = read(); d.orders = d.orders.map(o => o.id === order.id ? order : o); write(d); },
+  addRating: (orderId, rating) => {
+    const d = read();
+    const o = d.orders.find(x => x.id === orderId);
+    if (o) { o.rating = rating; write(d); }
+  },
+
+  // Members
+  getMembers: () => read().members,
+  getMemberById: (id) => read().members.find(m => String(m.id) === String(id)),
+  upsertMember: (member) => {
+    const d = read();
+    if (!d.members) d.members = [];
+    const idx = d.members.findIndex(m => String(m.id) === String(member.id));
+    if (idx >= 0) {
+      d.members[idx] = { ...d.members[idx], ...member, lastSeen: new Date().toISOString() };
+    } else {
+      d.members.push({ ...member, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() });
+    }
+    write(d);
+  },
+  getMemberPoints: (userId) => {
+    const orders = read().orders;
+    const total = orders
+      .filter(o => String(o.userId) === String(userId) && o.status === 'confirmed')
+      .reduce((s, o) => s + (o.price || 0), 0);
+    return Math.floor(total / 5);
+  },
 
   // Settings
   getSettings: () => read().settings,
