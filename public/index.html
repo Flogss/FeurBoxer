@@ -415,6 +415,7 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         <div class="admin-nav-item" onclick="adminNav('products',this)">🛍 <span>Produits</span></div>
         <div class="admin-nav-item" onclick="adminNav('payments',this)">💳 <span>Paiements</span></div>
         <div class="admin-nav-item" onclick="adminNav('settings',this)">⚙️ <span>Paramètres</span></div>
+        <div class="admin-nav-item" onclick="adminNav('tests',this)" style="border-left-color:var(--ng);color:var(--ng)">🧪 <span>Tests</span></div>
       </div>
       <div class="admin-content">
 
@@ -502,6 +503,49 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
             <div class="form-group"><textarea id="pay-viro" class="form-textarea" rows="4"></textarea></div>
           </div>
           <button class="btn-glow btn-primary" onclick="savePaymentSettings()">💾 SAUVEGARDER</button>
+        </div>
+
+        <!-- TESTS -->
+        <div class="admin-section" id="admin-tests-sec">
+          <h2 style="font-family:'Orbitron',sans-serif;margin-bottom:6px;font-size:1.2rem">🧪 Zone de test</h2>
+          <p style="color:var(--dim);font-size:.85rem;margin-bottom:24px">Génère et teste les outils sans passer par le tunnel de commande.</p>
+
+          <!-- Bordereau -->
+          <div class="glass-card" style="margin-bottom:16px;border-color:rgba(57,255,20,0.2)">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--ng);margin-bottom:14px">📄 BORDEREAU — GÉNÉRATION DIRECTE</h3>
+            <div class="form-group">
+              <label class="form-label">TEMPLATE</label>
+              <select id="test-template" class="form-select">
+                <option value="rts-colissimo">RTS Colissimo (Manuel)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">NUMÉRO DE SUIVI</label>
+              <input id="test-tracking" class="form-input" placeholder="ex: 6A05681027840" style="font-family:'Share Tech Mono',monospace">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <button class="btn-glow btn-primary" style="padding:10px 22px;font-size:.72rem" onclick="testGenerateBordereau()">📄 GÉNÉRER & ENVOYER SUR TELEGRAM</button>
+              <div id="test-bordereau-status" style="font-size:.82rem"></div>
+            </div>
+          </div>
+
+          <!-- Simuler commande Telegram -->
+          <div class="glass-card" style="border-color:rgba(155,93,229,0.2)">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--nv);margin-bottom:14px">📲 SIMULER UNE NOTIFICATION ADMIN</h3>
+            <p style="color:var(--dim);font-size:.82rem;margin-bottom:14px">Envoie un faux message de commande à l'admin Telegram pour tester la mise en forme.</p>
+            <div class="form-group">
+              <label class="form-label">PRODUIT (test)</label>
+              <input id="test-product-name" class="form-input" placeholder="ex: RTS simple — INSIDER" value="RTS simple — INSIDER">
+            </div>
+            <div class="form-group">
+              <label class="form-label">MONTANT (€)</label>
+              <input id="test-amount" class="form-input" type="number" value="50">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <button style="padding:10px 22px;background:rgba(155,93,229,0.12);border:1px solid var(--nv);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.7rem;font-weight:700" onclick="testSendFakeOrder()">📲 ENVOYER TEST TELEGRAM</button>
+              <div id="test-order-status" style="font-size:.82rem"></div>
+            </div>
+          </div>
         </div>
 
         <!-- SETTINGS -->
@@ -731,6 +775,15 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-glow btn-primary" style="flex:1;min-width:100px;padding:10px;font-size:.72rem" onclick="saveOrderStatus()">💾 APPLIQUER</button>
         <button style="flex:1;min-width:100px;padding:10px;background:rgba(247,37,133,0.1);border:1px solid var(--np);color:var(--np);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem" onclick="refuseOrder()">❌ REFUSER</button>
+      </div>
+      <!-- BORDEREAU -->
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+        <label class="form-label" style="color:var(--ng)">📄 GÉNÉRER LE BORDEREAU</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input type="text" id="odet-tracking" class="form-input" placeholder="Numéro de suivi (ex: 6A05681027840)" style="flex:1;font-family:'Share Tech Mono',monospace;font-size:.85rem">
+          <button id="odet-bordereau-btn" style="padding:10px 14px;background:rgba(57,255,20,0.12);border:1px solid var(--ng);color:var(--ng);border-radius:8px;cursor:pointer;font-family:'Orbitron',sans-serif;font-weight:700;font-size:.7rem;white-space:nowrap;transition:.2s" onclick="generateBordereau()">📄 GÉNÉRER</button>
+        </div>
+        <div id="odet-bordereau-status" style="margin-top:8px;font-size:.8rem"></div>
       </div>
     </div>
   </div>
@@ -1172,7 +1225,7 @@ function adminNav(section,el){
   document.querySelectorAll('.admin-nav-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');
   document.querySelectorAll('.admin-section').forEach(s=>s.classList.remove('active'));
   document.getElementById('admin-'+section+'-sec').classList.add('active');
-  const fns={dashboard:refreshAdminDashboard,orders:loadAdminOrders,members:loadAdminMembers,messages:loadAdminMessages,categories:renderAdminCats,products:renderAdminProducts,payments:loadAdminPaymentSettings,settings:loadAdminSettings};
+  const fns={dashboard:refreshAdminDashboard,orders:loadAdminOrders,members:loadAdminMembers,messages:loadAdminMessages,categories:renderAdminCats,products:renderAdminProducts,payments:loadAdminPaymentSettings,settings:loadAdminSettings,tests:()=>{}};
   fns[section]?.();
 }
 
@@ -1259,6 +1312,56 @@ function nextOrderStep(){
   if(idx===-1||idx===flow.length-1){showToast('ℹ️ Commande déjà au statut final','info');return;}
   document.getElementById('odet-status').value=flow[idx+1];
   saveOrderStatus();
+}
+
+async function testGenerateBordereau(){
+  const tracking=document.getElementById('test-tracking').value.trim();
+  if(!tracking){showToast('⚠️ Entrez un numéro de suivi','error');return;}
+  const status=document.getElementById('test-bordereau-status');
+  status.innerHTML='<span style="color:var(--dim)">⏳ Génération...</span>';
+  try{
+    await apiFetch('POST','/bordereau/process',{trackingNumber:tracking},{admin:true});
+    status.innerHTML='<span style="color:var(--ng)">✅ Bordereau envoyé sur Telegram !</span>';
+    showToast('✅ Bordereau de test envoyé','success');
+  }catch(e){
+    status.innerHTML=`<span style="color:var(--np)">❌ ${e.message}</span>`;
+    showToast('❌ '+e.message,'error');
+  }
+}
+
+async function testSendFakeOrder(){
+  const productName=document.getElementById('test-product-name').value.trim()||'TEST PRODUIT';
+  const amount=parseFloat(document.getElementById('test-amount').value)||0;
+  const status=document.getElementById('test-order-status');
+  status.innerHTML='<span style="color:var(--dim)">⏳ Envoi...</span>';
+  try{
+    await apiFetch('POST','/test/notify',{
+      text:`📦 *${productName}*\n💰 €${amount}\n💳 TEST\n👤 Admin Test\n\n_Ceci est un message de test — aucune vraie commande._`
+    },{admin:true});
+    status.innerHTML='<span style="color:var(--ng)">✅ Message test envoyé !</span>';
+    showToast('✅ Notification test envoyée','success');
+  }catch(e){
+    status.innerHTML=`<span style="color:var(--np)">❌ ${e.message}</span>`;
+    showToast('❌ '+e.message,'error');
+  }
+}
+
+async function generateBordereau(){
+  const tracking=document.getElementById('odet-tracking').value.trim();
+  if(!tracking){showToast('⚠️ Entrez un numéro de suivi','error');return;}
+  const btn=document.getElementById('odet-bordereau-btn');
+  const status=document.getElementById('odet-bordereau-status');
+  btn.disabled=true;btn.textContent='⏳ GÉNÉRATION...';
+  status.innerHTML='<span style="color:var(--dim)">⏳ Génération en cours...</span>';
+  try{
+    await apiFetch('POST','/bordereau/process',{orderId:STATE.currentAdminOrderId,trackingNumber:tracking},{admin:true});
+    status.innerHTML='<span style="color:var(--ng)">✅ Bordereau généré et envoyé sur Telegram !</span>';
+    showToast('✅ Bordereau envoyé à l\'admin','success');
+  }catch(e){
+    status.innerHTML=`<span style="color:var(--np)">❌ ${e.message}</span>`;
+    showToast('❌ '+e.message,'error');
+  }
+  btn.disabled=false;btn.textContent='📄 GÉNÉRER';
 }
 
 function contactClient(){

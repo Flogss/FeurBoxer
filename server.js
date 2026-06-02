@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./db');
 
@@ -334,6 +335,47 @@ app.get('/api/stats', adminAuth, (req, res) => {
   }
 
   res.json({ total: orders.length, revenue, pending, confirmed, avgRating, topProducts, revenueByDay, membersCount: members.length });
+});
+
+// ── TEST NOTIFY ──
+app.post('/api/test/notify', adminAuth, async (req, res) => {
+  const { text } = req.body;
+  const settings = db.getSettings();
+  if (!bot || !settings.adminUid) return res.status(500).json({ error: 'Bot ou adminUid non configuré' });
+  try {
+    await bot.sendMessage(settings.adminUid, `🧪 *[TEST ADMIN]*\n\n${text}`, { parse_mode: 'Markdown' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── BORDEREAU ──
+app.post('/api/bordereau/process', adminAuth, async (req, res) => {
+  const { orderId, trackingNumber } = req.body;
+  if (!trackingNumber) return res.status(400).json({ error: 'trackingNumber requis' });
+
+  const settings = db.getSettings();
+  const outFile  = path.join(__dirname, 'uploads', `bordereau-${Date.now()}.pdf`);
+  const script   = path.join(__dirname, 'bordereau', 'process_bordereau.py');
+
+  execFile('python3', [script, trackingNumber, outFile], async (err, stdout, stderr) => {
+    if (err) {
+      console.error('Bordereau error:', stderr);
+      return res.status(500).json({ error: 'Génération échouée : ' + stderr.trim() });
+    }
+
+    const order = orderId ? db.getOrderById(orderId) : null;
+    const caption = `📄 *Bordereau généré*\n\n🔑 \`${trackingNumber}\`${order
+      ? `\n👤 ${order.userName}${order.username ? ' (@' + order.username + ')' : ''}\n📦 ${order.productName}\n🆔 \`${orderId}\``
+      : ''}`;
+
+    if (bot && settings.adminUid) {
+      try {
+        await bot.sendDocument(settings.adminUid, outFile, { caption, parse_mode: 'Markdown' });
+      } catch (e) { console.error('TG bordereau error:', e.message); }
+    }
+
+    res.json({ ok: true });
+  });
 });
 
 // ── ADMIN LOGIN ──
