@@ -289,7 +289,7 @@ app.post('/api/messages', adminAuth, async (req, res) => {
 // ── PAYMENT SETTINGS (public) ──
 app.get('/api/payment-settings', (req, res) => {
   const s = db.getSettings();
-  res.json({ sol: s.sol, btc: s.btc, ltc: s.ltc, viro: s.viro });
+  res.json({ sol: s.sol, btc: s.btc, ltc: s.ltc, viro: s.viro, botUsername: s.botUsername || '' });
 });
 
 // ── SETTINGS ──

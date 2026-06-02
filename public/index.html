@@ -79,7 +79,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(2,4,8,0.92);
 .section{padding:40px 16px;max-width:1100px;margin:0 auto;}
 .section-title{font-family:'Orbitron',sans-serif;font-size:1.4rem;font-weight:700;margin-bottom:6px;letter-spacing:2px;background:linear-gradient(135deg,var(--nb),var(--nv));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .section-sub{color:var(--dim);font-size:.95rem;margin-bottom:32px;}
-.grid-3{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
 .glow-divider{height:1px;margin:40px 0;background:linear-gradient(90deg,transparent,var(--nv),var(--nb),transparent);opacity:.35;}
 
 /* GLASS CARD */
@@ -100,20 +100,20 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(2,4,8,0.92);
 .cat-btn:hover{transform:translateY(-2px);opacity:.9;}
 
 /* PRODUCT CARD */
-.product-card{background:var(--card);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:.3s;cursor:pointer;position:relative;}
-.product-card:hover{transform:translateY(-4px);border-color:rgba(0,212,255,0.35);box-shadow:0 12px 40px rgba(0,0,0,0.3);}
+.product-card{background:var(--card);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:.3s;cursor:pointer;position:relative;}
+.product-card:hover{transform:translateY(-3px);border-color:rgba(0,212,255,0.35);box-shadow:0 8px 28px rgba(0,0,0,0.3);}
 .product-card.out-of-stock{opacity:.65;}
-.product-img{height:80px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;position:relative;}
-.product-price-tag{position:absolute;top:10px;right:10px;background:linear-gradient(135deg,var(--nb),var(--nv));color:#fff;padding:3px 10px;border-radius:20px;font-family:'Share Tech Mono',monospace;font-size:.78rem;font-weight:700;}
+.product-img{height:52px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;position:relative;}
+.product-price-tag{position:absolute;top:7px;right:7px;background:linear-gradient(135deg,var(--nb),var(--nv));color:#fff;padding:2px 8px;border-radius:20px;font-family:'Share Tech Mono',monospace;font-size:.72rem;font-weight:700;}
 .product-price-tag.discounted{background:linear-gradient(135deg,var(--ng),#00aa44);}
-.badge-oos{position:absolute;top:10px;left:10px;background:rgba(247,37,133,0.85);color:#fff;padding:3px 8px;border-radius:6px;font-size:.68rem;font-weight:700;font-family:'Share Tech Mono',monospace;backdrop-filter:blur(4px);}
-.badge-disc{position:absolute;top:10px;left:10px;background:rgba(57,255,20,0.85);color:#000;padding:3px 8px;border-radius:6px;font-size:.68rem;font-weight:700;font-family:'Share Tech Mono',monospace;}
-.product-body{padding:14px;}
-.product-title{font-family:'Orbitron',sans-serif;font-size:.85rem;font-weight:700;margin-bottom:5px;}
-.product-desc{color:var(--dim);font-size:.82rem;line-height:1.4;margin-bottom:10px;}
-.product-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;}
-.product-type{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--nv);background:rgba(155,93,229,0.1);padding:3px 7px;border-radius:4px;flex-shrink:0;}
-.product-buy{background:linear-gradient(135deg,var(--nb),var(--nv));color:#fff;border:none;padding:8px 14px;border-radius:8px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem;cursor:pointer;transition:.2s;min-height:38px;}
+.badge-oos{position:absolute;top:7px;left:7px;background:rgba(247,37,133,0.85);color:#fff;padding:2px 6px;border-radius:5px;font-size:.62rem;font-weight:700;font-family:'Share Tech Mono',monospace;backdrop-filter:blur(4px);}
+.badge-disc{position:absolute;top:7px;left:7px;background:rgba(57,255,20,0.85);color:#000;padding:2px 6px;border-radius:5px;font-size:.62rem;font-weight:700;font-family:'Share Tech Mono',monospace;}
+.product-body{padding:10px 12px 12px;}
+.product-title{font-family:'Orbitron',sans-serif;font-size:.75rem;font-weight:700;margin-bottom:3px;}
+.product-desc{color:var(--dim);font-size:.72rem;line-height:1.3;margin-bottom:8px;}
+.product-meta{display:flex;justify-content:space-between;align-items:center;gap:6px;}
+.product-type{font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--nv);background:rgba(155,93,229,0.1);padding:2px 6px;border-radius:4px;flex-shrink:0;}
+.product-buy{background:linear-gradient(135deg,var(--nb),var(--nv));color:#fff;border:none;padding:6px 10px;border-radius:7px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.75rem;cursor:pointer;transition:.2s;min-height:32px;}
 .product-buy:hover{opacity:.85;transform:scale(1.03);}
 .product-buy:disabled{background:rgba(255,255,255,0.1);color:var(--dim);cursor:not-allowed;transform:none;}
 .product-rating-row{display:flex;align-items:center;gap:4px;margin-top:6px;}
@@ -254,6 +254,15 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 /* ADMIN LOCK */
 .admin-lock{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
 .admin-lock-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:36px;text-align:center;max-width:360px;width:100%;}
+
+/* NAV ANIMATION */
+@keyframes nav-in{from{transform:translateY(-58px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
+
+/* CAT FILTER ANIMATION */
+@keyframes filter-pop{0%{transform:scale(1);}45%{transform:scale(1.12);}100%{transform:scale(1);}}
+.cat-flash{animation:filter-pop .3s cubic-bezier(.22,1,.36,1);}
+.nav-btn{transition:all .2s;}
 
 /* REVEAL ANIM */
 .reveal{opacity:0;transform:translateY(32px);transition:opacity .65s cubic-bezier(.22,1,.36,1),transform .65s cubic-bezier(.22,1,.36,1);}
@@ -580,11 +589,11 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <button class="btn-outline" style="width:100%;margin-top:8px;padding:11px;border-radius:8px;cursor:pointer;background:none;color:var(--dim);border:1px solid var(--border);font-family:'Rajdhani',sans-serif;font-size:.88rem" onclick="orderNextStep(1)">← RETOUR</button>
     </div>
     <div id="order-step3" style="display:none">
-      <div class="modal-title">📸 BORDEREAU D'ENVOI</div>
-      <div class="modal-sub">Uploadez votre bordereau d'envoi</div>
+      <div class="modal-title">📸 PREUVE DE PAIEMENT</div>
+      <div class="modal-sub">Uploadez votre preuve de paiement</div>
       <div class="file-upload-zone" onclick="document.getElementById('proof-file-input').click()" id="proof-drop-zone">
         <div class="upload-icon">📸</div>
-        <div class="upload-text">Cliquez pour uploader la <strong>bordereau d'envoi</strong></div>
+        <div class="upload-text">Cliquez pour uploader la <strong>preuve de paiement</strong></div>
         <div style="font-size:.72rem;color:var(--dim);margin-top:4px">PNG, JPG, PDF</div>
       </div>
       <input type="file" id="proof-file-input" style="display:none" accept=".jpg,.jpeg,.png,.pdf" onchange="handleProofFile(this)">
@@ -761,6 +770,7 @@ async function loadAll(){
     apiFetch('GET','/products'),
     apiFetch('GET','/payment-settings')
   ]);
+  if(paymentSettings.botUsername) window._botUsername=paymentSettings.botUsername;
   document.getElementById('stat-cats').textContent=categories.length;
 }
 
@@ -814,7 +824,14 @@ function telegramLogin(){
   } else if(window._botUsername){
     renderTelegramLoginWidget();
   } else {
-    showToast('⚡ Ouvrez depuis Telegram pour vous connecter','info');
+    // Pas de bot username configuré — afficher instructions
+    const box=document.getElementById('tg-login-widget-container');
+    box.innerHTML=`<div style="background:rgba(0,136,204,0.08);border:1px solid rgba(0,136,204,0.25);border-radius:10px;padding:14px;font-size:.82rem;color:var(--dim);line-height:1.6">
+      <div style="color:var(--nb);font-weight:700;margin-bottom:6px">📲 Connexion via Telegram</div>
+      Ouvrez ce site depuis le bot Telegram ou configurez le username du bot dans les paramètres admin.
+    </div>`;
+    box.style.display='block';
+    document.getElementById('btn-tg-login').style.display='none';
   }
 }
 
@@ -914,7 +931,7 @@ function renderHomeCats(){
     </div>`;
   }).join('');
   document.getElementById('stat-cats').textContent=categories.length;
-  observeReveals();
+  setTimeout(observeReveals, 80);
 }
 
 // ── SHOP ──
@@ -927,10 +944,15 @@ function renderShopFilters(){
       const style=isActive
         ? `background:${col}22;border-color:${col};color:${col};box-shadow:0 0 12px ${col}55`
         : `border-color:${col}44;color:${col}99`;
-      return `<button class="nav-btn" style="${style}" onclick="filterCat('${c.id}')">${logo}${c.name}</button>`;
+      return `<button class="nav-btn" id="cat-btn-${c.id}" style="${style}" onclick="filterCat('${c.id}')">${logo}${c.name}</button>`;
     }).join('');
 }
-function filterCat(id){STATE.currentCatFilter=id;renderShop();}
+function filterCat(id){
+  STATE.currentCatFilter=id;
+  renderShop();
+  const btn=document.getElementById('cat-btn-'+id);
+  if(btn){btn.classList.remove('cat-flash');void btn.offsetWidth;btn.classList.add('cat-flash');setTimeout(()=>btn.classList.remove('cat-flash'),350);}
+}
 
 function renderShop(){
   renderShopFilters();
