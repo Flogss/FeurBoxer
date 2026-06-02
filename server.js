@@ -165,6 +165,8 @@ app.post('/api/orders', upload.fields([{ name: 'proof', maxCount: 1 }, { name: '
     price: data.price,
     text: data.text || '',
     payMethod: data.payMethod,
+    customWeight: data.customWeight || false,
+    weight: data.weight || '',
     status: 'pending',
     date: new Date().toISOString(),
     proofFile: req.files?.proof?.[0]?.filename || null,
@@ -180,7 +182,8 @@ app.post('/api/orders', upload.fields([{ name: 'proof', maxCount: 1 }, { name: '
   // ─── 1 SEUL MESSAGE : photo de preuve + toutes les infos + boutons ───
   const settings = db.getSettings();
   if (bot && settings.adminUid) {
-    const caption = `🆕 *NOUVELLE COMMANDE — FEUR BOXING*\n\n📦 *${order.productName}*\n🗂 ${order.catName}\n💰 *€${order.price}*\n💳 ${(order.payMethod || '').toUpperCase()}\n\n👤 *${order.userName}*${order.username ? ' (@' + order.username + ')' : ''}\n🆔 \`${order.userId}\`\n📋 ${order.text || '_(fichier joint — envoyé à confirmation)_'}\n🗓 ${new Date().toLocaleString('fr-FR')}\n🔑 \`${orderId}\``;
+    const weightLine = order.customWeight && order.weight ? `\n⚖️ Poids : ${order.weight} kg (+5€)` : '';
+    const caption = `🆕 *NOUVELLE COMMANDE — FEUR BOXING*\n\n📦 *${order.productName}* — ${order.desc||''}\n🗂 ${order.catName}\n💰 *€${order.price}*${weightLine}\n💳 ${(order.payMethod || '').toUpperCase()}\n\n👤 *${order.userName}*${order.username ? ' (@' + order.username + ')' : ''}\n🆔 \`${order.userId}\`\n📋 ${order.text || '_(fichier joint — envoyé à confirmation)_'}\n🗓 ${new Date().toLocaleString('fr-FR')}\n🔑 \`${orderId}\``;
 
     const keyboard = {
       inline_keyboard: [

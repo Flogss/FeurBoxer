@@ -559,7 +559,16 @@ tr:hover td{background:rgba(255,255,255,0.02);}
         </div>
         <input type="file" id="order-file-input" style="display:none" accept=".pdf,.jpg,.jpeg,.png" onchange="handleOrderFile(this)">
       </div>
-      <button class="btn-glow btn-primary" style="width:100%;margin-top:6px" onclick="orderNextStep(2)">CONTINUER →</button>
+      <div id="order-weight-group" style="display:none;background:rgba(255,214,10,0.05);border:1px solid rgba(255,214,10,0.25);border-radius:10px;padding:14px;margin-top:14px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:0">
+          <input type="checkbox" id="order-weight-check" style="width:18px;height:18px;cursor:pointer;accent-color:var(--no)" onchange="toggleWeightOption(this)">
+          <span style="font-family:'Orbitron',sans-serif;font-size:.78rem;color:var(--no)">⚖️ POIDS PERSONNALISÉ <span style="color:var(--ng);font-size:.82rem">+5€</span></span>
+        </label>
+        <div id="order-weight-input-group" style="display:none;margin-top:10px">
+          <input type="number" id="order-weight-value" class="form-input" placeholder="Poids en kg (ex: 2.5)" step="0.1" min="0">
+        </div>
+      </div>
+      <button class="btn-glow btn-primary" style="width:100%;margin-top:14px" onclick="orderNextStep(2)">CONTINUER →</button>
     </div>
     <div id="order-step2" style="display:none">
       <div class="modal-title">💳 PAIEMENT</div>
@@ -673,9 +682,15 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       </select>
     </div>
     <div class="form-group"><label class="form-label">INFO POUR LE CLIENT</label><input id="product-input-hint" class="form-input"></div>
-    <div class="form-group" style="display:flex;gap:16px">
+    <div class="form-group" style="display:flex;gap:16px;flex-wrap:wrap">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;color:var(--dim)"><input type="checkbox" id="product-active" checked style="width:16px;height:16px"> ACTIF</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;color:var(--dim)"><input type="checkbox" id="product-oos" style="width:16px;height:16px"> RUPTURE DE STOCK</label>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;color:var(--no)">
+        <input type="checkbox" id="product-custom-weight" style="width:16px;height:16px">
+        ⚖️ POIDS PERSONNALISÉ (+5€) — le client peut activer cette option et saisir son poids
+      </label>
     </div>
     <button class="btn-glow btn-primary" style="width:100%" onclick="saveProduct()">💾 SAUVEGARDER</button>
   </div>
@@ -965,8 +980,16 @@ function openOrderModal(productId){
   document.getElementById('order-text-group').style.display=(t==='text'||t==='both')?'block':'none';
   document.getElementById('order-file-group').style.display=(t==='file'||t==='both')?'block':'none';
   const fp=p.discount>0?Math.round(p.price*(1-p.discount/100)):p.price;
-  document.getElementById('order-amount-display').textContent='Montant : €'+fp;
   STATE.currentOrder.finalPrice=fp;
+  STATE.currentOrder.customWeightEnabled=false;
+  STATE.currentOrder.weight='';
+  // Poids personnalisé
+  const wg=document.getElementById('order-weight-group');
+  wg.style.display=p.customWeight?'block':'none';
+  document.getElementById('order-weight-check').checked=false;
+  document.getElementById('order-weight-input-group').style.display='none';
+  const wv=document.getElementById('order-weight-value');if(wv)wv.value='';
+  document.getElementById('order-amount-display').textContent='Montant : €'+fp;
   renderPaymentOptions();goOrderStep(1);openModal('modal-order');
 }
 
@@ -1001,12 +1024,26 @@ function handleProofFile(input){
   dz.innerHTML=`<div class="upload-icon">✅</div><div class="upload-text"><strong>${f.name}</strong></div>`;dz.classList.add('has-file');
 }
 
+function toggleWeightOption(cb){
+  document.getElementById('order-weight-input-group').style.display=cb.checked?'block':'none';
+  const p=STATE.currentOrder.product;
+  const base=p.discount>0?Math.round(p.price*(1-p.discount/100)):p.price;
+  const extra=cb.checked?5:0;
+  STATE.currentOrder.finalPrice=base+extra;
+  document.getElementById('order-amount-display').textContent='Montant : €'+(base+extra)+(extra?' (dont +5€ poids perso)':'');
+}
+
 function orderNextStep(step){
   if(step===2){
     const p=STATE.currentOrder.product,t=p.inputType;
     if((t==='text'||t==='both')&&!document.getElementById('order-text-input').value.trim()){showToast('⚠️ Texte/numéro requis','error');return;}
     if((t==='file'||t==='both')&&!STATE.currentOrder.file){showToast('⚠️ Fichier requis','error');return;}
     STATE.currentOrder.text=document.getElementById('order-text-input').value.trim();
+    // Poids personnalisé
+    const wCheck=document.getElementById('order-weight-check');
+    STATE.currentOrder.customWeightEnabled=wCheck.checked;
+    STATE.currentOrder.weight=document.getElementById('order-weight-value').value.trim();
+    if(wCheck.checked&&!STATE.currentOrder.weight){showToast('⚠️ Entrez le poids en kg','error');return;}
   }
   if(step===3&&!STATE.currentOrder.payMethod){showToast('⚠️ Choisissez une méthode de paiement','error');return;}
   goOrderStep(step);
@@ -1034,7 +1071,8 @@ async function submitOrder(){
     fd.append('orderData',JSON.stringify({
       userId:STATE.user.id,userName:STATE.user.name,username:STATE.user.username,photo:STATE.user.photo||null,
       productId:STATE.currentOrder.productId,productName:p.name,catId:p.catId,catName:catMap[p.catId]?.name||'',
-      price:STATE.currentOrder.finalPrice||p.price,text:STATE.currentOrder.text,payMethod:STATE.currentOrder.payMethod
+      price:STATE.currentOrder.finalPrice||p.price,text:STATE.currentOrder.text,payMethod:STATE.currentOrder.payMethod,
+      customWeight:STATE.currentOrder.customWeightEnabled||false,weight:STATE.currentOrder.weight||''
     }));
     fd.append('proof',STATE.currentOrder.proofFile);
     if(STATE.currentOrder.file)fd.append('orderFile',STATE.currentOrder.file);
@@ -1170,7 +1208,7 @@ function openOrderDetail(orderId){
       ${o.photo?`<div style="margin-bottom:10px"><img src="${o.photo}" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--nv)"></div>`:''}
       <div>👤 <strong>${o.userName}</strong>${o.username?' (@'+o.username+')':''}</div>
       <div>🆔 <span style="font-family:'Share Tech Mono',monospace;font-size:.78rem">${o.userId}</span></div>
-      <div>💰 €${o.price} — ${(o.payMethod||'').toUpperCase()}</div>
+      <div>💰 €${o.price} — ${(o.payMethod||'').toUpperCase()}${o.customWeight&&o.weight?` <span style="color:var(--no);font-size:.8rem">⚖️ ${o.weight} kg (+5€)</span>`:''}</div>
       <div>📋 Numéro de suivi : ${o.text||'<em style="color:var(--dim)">(fichier joint — visible à confirmation)</em>'}</div>
       <div>📅 ${new Date(o.date).toLocaleString('fr-FR')}</div>
       ${o.rating?`<div>⭐ Note : ${'⭐'.repeat(o.rating)}</div>`:''}
@@ -1371,7 +1409,7 @@ function renderAdminProducts(){
   const catMap={};categories.forEach(c=>catMap[c.id]=c);
   document.getElementById('adm-products-table').innerHTML=products.map(p=>`
     <tr>
-      <td>${p.icon} ${p.name}${p.discount>0?` <span style="color:var(--ng);font-size:.72rem">-${p.discount}%</span>`:''}</td>
+      <td>${p.icon} ${p.name}${p.discount>0?` <span style="color:var(--ng);font-size:.72rem">-${p.discount}%</span>`:''}${p.customWeight?' <span style="color:var(--no);font-size:.68rem">⚖️</span>':''}</td>
       <td>${catMap[p.catId]?.name||'-'}</td>
       <td style="color:var(--ng)">€${p.price}</td>
       <td>${p.outOfStock?'<span style="color:var(--np);font-size:.75rem">RUPTURE</span>':'<span style="color:var(--ng);font-size:.75rem">EN STOCK</span>'}</td>
@@ -1395,6 +1433,7 @@ function openProductModal(id=null){
   document.getElementById('product-input-hint').value=p?.inputHint||'';
   document.getElementById('product-active').checked=p?.active!==false;
   document.getElementById('product-oos').checked=p?.outOfStock||false;
+  document.getElementById('product-custom-weight').checked=p?.customWeight||false;
   const sel=document.getElementById('product-cat');
   sel.innerHTML=categories.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
   if(p)sel.value=p.catId;
@@ -1403,7 +1442,7 @@ function openProductModal(id=null){
 function editProduct(id){openProductModal(id);}
 async function saveProduct(){
   const id=document.getElementById('product-edit-id').value;
-  const obj={catId:document.getElementById('product-cat').value,name:document.getElementById('product-name').value,price:parseFloat(document.getElementById('product-price').value)||0,discount:parseInt(document.getElementById('product-discount').value)||0,desc:document.getElementById('product-desc-input').value,icon:document.getElementById('product-icon').value,inputType:document.getElementById('product-input-type').value,inputHint:document.getElementById('product-input-hint').value,active:document.getElementById('product-active').checked,outOfStock:document.getElementById('product-oos').checked};
+  const obj={catId:document.getElementById('product-cat').value,name:document.getElementById('product-name').value,price:parseFloat(document.getElementById('product-price').value)||0,discount:parseInt(document.getElementById('product-discount').value)||0,desc:document.getElementById('product-desc-input').value,icon:document.getElementById('product-icon').value,inputType:document.getElementById('product-input-type').value,inputHint:document.getElementById('product-input-hint').value,active:document.getElementById('product-active').checked,outOfStock:document.getElementById('product-oos').checked,customWeight:document.getElementById('product-custom-weight').checked};
   try{
     if(id){await apiFetch('PUT','/products/'+id,obj,{admin:true});products=products.map(p=>p.id===id?{id,...obj}:p);}
     else{const pr=await apiFetch('POST','/products',obj,{admin:true});products.push(pr);}
