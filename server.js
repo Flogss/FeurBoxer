@@ -357,10 +357,14 @@ app.post('/api/bordereau/process', adminAuth, async (req, res) => {
   const outFile  = path.join(__dirname, 'uploads', `bordereau-${Date.now()}.pdf`);
   const script   = path.join(__dirname, 'bordereau', 'process_bordereau.py');
 
-  execFile('python3', [script, trackingNumber, outFile], async (err, stdout, stderr) => {
+  // Essaie python3 puis python comme fallback
+  const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+
+  execFile(pythonCmd, [script, trackingNumber, outFile], async (err, stdout, stderr) => {
     if (err) {
-      console.error('Bordereau error:', stderr);
-      return res.status(500).json({ error: 'Génération échouée : ' + stderr.trim() });
+      const detail = (stderr || '').trim() || err.message || 'commande introuvable';
+      console.error('Bordereau error:', { code: err.code, msg: err.message, stderr });
+      return res.status(500).json({ error: 'Génération échouée : ' + detail });
     }
 
     const order = orderId ? db.getOrderById(orderId) : null;
