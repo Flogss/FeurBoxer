@@ -2,6 +2,8 @@
 """
 process_bordereau.py — Modifie un bordereau Colissimo PDF (template RTS)
 Usage: python3 process_bordereau.py <nouveau_numero_suivi> <chemin_sortie.pdf>
+
+Stratégie : draw_rect blanc + insert_text (pas de redaction qui efface le contenu voisin)
 """
 
 import sys
@@ -22,8 +24,9 @@ TEMPLATES = {
 OLD_TRACKING      = "6A05681027840"
 OLD_BARCODE_LABEL = "116A 05681027840D"
 
-# Zone du barcode image (déterminée par analyse — couvre tous les strips)
-BARCODE_RECT = fitz.Rect(54, 327, 342, 442)
+# Zone du barcode image : commence à y=343 pour préserver le texte metadata
+# "01/06/26 08:20 AELGP_DN..." qui se trouve à y=333-342
+BARCODE_RECT = fitz.Rect(54, 343, 342, 440)
 
 
 def format_barcode_label(tracking: str) -> str:
@@ -34,13 +37,13 @@ def format_barcode_label(tracking: str) -> str:
 
 
 def generate_barcode_png(tracking: str, width_pt: float, height_pt: float) -> bytes:
-    """Code 128 rectangulaire (sans texte en-dessous), retourne bytes PNG."""
+    """Code 128 rectangulaire sans texte en-dessous — retourne bytes PNG."""
     CODE128 = barcode.get_barcode_class('code128')
     buf = io.BytesIO()
     bc = CODE128(tracking, writer=ImageWriter())
     bc.write(buf, options={
-        'module_width': 0.22,
-        'module_height': 11.0,
+        'module_width': 0.18,
+        'module_height': 10.0,
         'quiet_zone': 2.0,
         'write_text': False,
         'font_size': 0,
@@ -52,7 +55,8 @@ def generate_barcode_png(tracking: str, width_pt: float, height_pt: float) -> by
     buf.seek(0)
     img = Image.open(buf).convert('RGB')
 
-    target_w = int(width_pt * 150 / 72)
+    # Dimensionner exactement à la zone cible (150 dpi)
+    target_w = int(width_pt  * 150 / 72)
     target_h = int(height_pt * 150 / 72)
     img = img.resize((target_w, target_h), Image.LANCZOS)
 
@@ -67,60 +71,41 @@ def process(template_path: str, new_tracking: str, output_path: str) -> None:
     doc = fitz.open(template_path)
     page = doc[0]
 
-    # ── 1. Localiser les textes existants ─────────────────────────────────
-    tracking_rects = page.search_for(OLD_TRACKING)
-    label_rects    = page.search_for(OLD_BARCODE_LABEL)
-
-    if not tracking_rects:
-        tracking_rects = [fitz.Rect(96, 195, 165, 212)]
-        print("⚠ tracking text not found, using fallback position", file=sys.stderr)
-    if not label_rects:
-        label_rects = [fitz.Rect(59, 271, 255, 304)]
-        print("⚠ barcode label not found, using fallback position", file=sys.stderr)
-
-    # ── 2. Masquer les textes + zone barcode ──────────────────────────────
-    for r in tracking_rects:
-        page.add_redact_annot(r, fill=(1, 1, 1))
-    for r in label_rects:
-        page.add_redact_annot(r, fill=(1, 1, 1))
-    page.add_redact_annot(BARCODE_RECT, fill=(1, 1, 1))
-
-    page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_REMOVE)
-
-    # ── 3. Insérer le nouveau numéro de colis ─────────────────────────────
-    for r in tracking_rects:
+    # ── 1. Num colis : couvrir l'ancien + réécrire ────────────────────────
+    # Font original : Helvetica-Bold size=8
+    for r in page.search_for(OLD_TRACKING):
+        page.draw_rect(r, color=None, fill=(1, 1, 1), overlay=True)
         page.insert_text(
             fitz.Point(r.x0, r.y1),
             new_tracking,
-            fontname="cour",
+            fontname="hebo",   # Helvetica-Bold
             fontsize=8,
             color=(0, 0, 0),
         )
 
-    # ── 4. Insérer le nouveau label barcode (centré dans la zone) ─────────
-    for r in label_rects:
-        # Calcul fontsize pour tenir dans la largeur (Courier = 0.6em par char)
-        max_fs = int((r.width * 0.95) / (len(new_label) * 0.6))
-        fs = min(max_fs, 20)  # ne pas dépasser le font original
-        # Centrage horizontal
-        char_w = fs * 0.6
-        text_w = len(new_label) * char_w
-        x0 = r.x0 + (r.width - text_w) / 2
+    # ── 2. Label barcode : couvrir l'ancien + réécrire ────────────────────
+    # Font original : Helvetica-Bold size=20
+    # NB : FR-COL-1175-94RUN overlap avec cette zone mais N'EST PAS redacté —
+    # on peint juste par-dessus sans toucher les objets PDF existants.
+    for r in page.search_for(OLD_BARCODE_LABEL):
+        page.draw_rect(r, color=None, fill=(1, 1, 1), overlay=True)
         page.insert_text(
-            fitz.Point(x0, r.y1),
+            fitz.Point(r.x0, r.y1),
             new_label,
-            fontname="cour",
-            fontsize=fs,
+            fontname="hebo",   # Helvetica-Bold
+            fontsize=20,
             color=(0, 0, 0),
         )
 
-    # ── 5. Générer et insérer le barcode Code 128 ─────────────────────────
+    # ── 3. Image barcode : couvrir les anciennes barres + insérer la nouvelle
+    # La zone commence à y=343 (en-dessous du texte "01/06/26 08:20...")
+    page.draw_rect(BARCODE_RECT, color=None, fill=(1, 1, 1), overlay=True)
     bc_png = generate_barcode_png(new_tracking, BARCODE_RECT.width, BARCODE_RECT.height)
     page.insert_image(BARCODE_RECT, stream=bc_png, keep_proportion=False)
 
-    # ── 6. Sauvegarder ────────────────────────────────────────────────────
+    # ── 4. Sauvegarder ────────────────────────────────────────────────────
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    doc.save(output_path, deflate=True, garbage=4)
+    doc.save(output_path, deflate=True)
     doc.close()
     print(output_path)
 
