@@ -2,9 +2,25 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./db');
+
+// Détecte le bon exécutable Python (venv Railway ou système)
+function getPython() {
+  const candidates = [
+    '/app/.venv/bin/python3',   // Railway venv
+    '/app/.venv/bin/python',
+    'python3',
+    'python',
+  ];
+  for (const cmd of candidates) {
+    try { execFileSync(cmd, ['--version'], { timeout: 3000 }); return cmd; } catch(e) {}
+  }
+  return 'python3';
+}
+const PYTHON = getPython();
+console.log('🐍 Python:', PYTHON);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -357,10 +373,7 @@ app.post('/api/bordereau/process', adminAuth, async (req, res) => {
   const outFile  = path.join(__dirname, 'uploads', `bordereau-${Date.now()}.pdf`);
   const script   = path.join(__dirname, 'bordereau', 'process_bordereau.py');
 
-  // Essaie python3 puis python comme fallback
-  const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-
-  execFile(pythonCmd, [script, trackingNumber, outFile], async (err, stdout, stderr) => {
+  execFile(PYTHON, [script, trackingNumber, outFile], async (err, stdout, stderr) => {
     if (err) {
       const detail = (stderr || '').trim() || err.message || 'commande introuvable';
       console.error('Bordereau error:', { code: err.code, msg: err.message, stderr });
