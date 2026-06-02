@@ -15,37 +15,39 @@ TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "RTS COL BORDEREAU.pdf")
 
 OLD_TRACKING      = "6A05681027840"
 OLD_BARCODE_LABEL = "116A 05681027840D"
+FR_COL_TEXT       = "FR-COL-1175-94RUN"
 
-# Métriques Helvetica-Bold (fraction de la taille)
-_FONT_HEB  = fitz.Font("hebo")
-ASC_RATIO  = _FONT_HEB.ascender          # ≈ 1.07
-DESC_RATIO = abs(_FONT_HEB.descender)    # ≈ 0.307
-CAP_RATIO  = 0.72                        # hauteur des majuscules ≈ 72 % de la taille
+# Métriques Helvetica-Bold
+_HEBO      = fitz.Font("hebo")
+_HELV      = fitz.Font("helv")
+DESC_HEBO  = abs(_HEBO.descender)   # ≈ 0.307
+CAP_HEBO   = 0.72                   # hauteur majuscules / taille
 
-# Positions des séparateurs trouvées par analyse (y PDF, origine haut-gauche)
-SEP_NUM_COLIS = 199.0    # ligne horizontale au-dessus de "6A05681027840"
-SEP_LABEL     = 281.5    # ligne horizontale dans la zone "116A..."
-SEP_BARCODE_Y = 350.65   # ligne épaisse en haut de la zone barcode
-SEP_BARCODE   = (74.27, 350.65, 320.88, 350.65)   # (x0,y0,x1,y1)
-SEP_BARCODE_W = 1.7
+# Séparateurs — positions exactes dans le template
+#   y=199   : séparateur fin AU-DESSUS du num colis  → on l'évite (rect commence à y=200.5)
+#   y=281.5 : séparateur au bord du label 116A       → on l'évite (rect commence à y=282)
+#              NE PAS redessiner : coupe le QR code !
+#   y=350.65: séparateur barcode                      → couvert par rect blanc, PAS redessiné
 
-# Zone image barcode : on insère SOUS le séparateur y=351
-BARCODE_RECT = fitz.Rect(74, 353, 321, 427)
+# Zone du barcode : même dimensions que Im20 (xref=65, 422×162 à (92,344,303,425))
+# On couvre aussi la zone au-dessus (y=344) avec un rect blanc pour effacer les
+# anciens strips de barcode, sans toucher le texte metadata à y=334-342.
+BARCODE_WHITE  = fitz.Rect(54, 344, 342, 430)    # efface tous les anciens strips
+BARCODE_INSERT = fitz.Rect(92, 344, 303, 425)    # correspond à Im20 (original)
 
 
 def format_label(tracking: str) -> str:
-    """'6A05681027840' → '116A 05681027840D'"""
     return f"11{tracking[:2]} {tracking[2:]}D"
 
 
 def generate_barcode_png(tracking: str, width_pt: float, height_pt: float) -> bytes:
-    """Code 128 barres fines, retourne PNG bytes."""
+    """Code 128 barres fines — genère à 300 dpi, resize à la zone cible."""
     CODE128 = barcode.get_barcode_class("code128")
     buf = io.BytesIO()
     CODE128(tracking, writer=ImageWriter()).write(buf, options={
-        "module_width":  0.25,   # barres fines
+        "module_width":  0.25,
         "module_height": 10.0,
-        "quiet_zone":    2.0,
+        "quiet_zone":    1.5,
         "write_text":    False,
         "font_size":     0,
         "text_distance": 0,
@@ -55,58 +57,25 @@ def generate_barcode_png(tracking: str, width_pt: float, height_pt: float) -> by
     })
     buf.seek(0)
     img = Image.open(buf).convert("RGB")
-    # Dimensionner à la zone cible sans déformer les barres
-    target_w = int(width_pt  * 300 / 72)
-    target_h = int(height_pt * 300 / 72)
-    img = img.resize((target_w, target_h), Image.LANCZOS)
+    # Redimensionner à la taille exacte de la zone
+    dpi = 200
+    w = int(width_pt  * dpi / 72)
+    h = int(height_pt * dpi / 72)
+    img = img.resize((w, h), Image.LANCZOS)
     out = io.BytesIO()
     img.save(out, format="PNG")
     return out.getvalue()
 
 
-def find_span(page, target_text):
-    """Retourne le span rawdict du texte cible, ou None."""
+def find_span_rawdict(page, target):
+    """Retourne le span rawdict du texte cible."""
     for b in page.get_text("rawdict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]:
         for line in b.get("lines", []):
             for span in line.get("spans", []):
-                chars = span.get("chars", [])
-                t = "".join(c.get("c", "") for c in chars).strip()
-                if t == target_text:
+                t = "".join(c.get("c", "") for c in span.get("chars", [])).strip()
+                if t == target:
                     return span
     return None
-
-
-def replace_text(page, span, new_text):
-    """
-    Remplace un texte dans le PDF :
-    - rect blanc couvrant uniquement le corps des caractères
-      (entre le haut des majuscules et le bas des descendantes)
-    - Nouveau texte par-dessus en Helvetica-Bold
-    """
-    ox, oy = span["origin"]
-    size   = span["size"]
-    bbox   = span["bbox"]
-
-    cap_h  = CAP_RATIO  * size     # hauteur des majuscules
-    desc   = DESC_RATIO * size     # descendante
-
-    # Rect blanc : depuis le haut des majuscules jusqu'au bas des descendantes
-    # On ajoute 0.5pt de marge pour couvrir l'antialiasing
-    white = fitz.Rect(
-        bbox[0],
-        oy - cap_h - 0.5,
-        bbox[2],
-        oy + desc + 0.5,
-    )
-    page.draw_rect(white, fill=(1, 1, 1), color=None, overlay=True)
-    page.insert_text(fitz.Point(ox, oy), new_text,
-                     fontname="hebo", fontsize=size, color=(0, 0, 0))
-
-
-def redraw_hline(page, x0, y0, x1, y1, width, color=(0, 0, 0)):
-    """Redessine une ligne horizontale par-dessus le contenu ajouté."""
-    page.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1),
-                   color=color, width=width)
 
 
 def process(new_tracking: str, output_path: str) -> None:
@@ -118,32 +87,59 @@ def process(new_tracking: str, output_path: str) -> None:
     doc  = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
-    # ── 1. Numéro de colis (size=8, Helvetica-Bold) ───────────────────────
-    span = find_span(page, OLD_TRACKING)
-    if span:
-        replace_text(page, span, new_tracking)
-        # Le séparateur à y=199 est AU-DESSUS du haut des majuscules
-        # (caps_top ≈ 200.5 > 199) → il n'est PAS couvert par le rect blanc ✓
+    # ── Récupérer les spans AVANT modification ─────────────────────────────
+    span_tracking = find_span_rawdict(page, OLD_TRACKING)
+    span_label    = find_span_rawdict(page, OLD_BARCODE_LABEL)
+    span_frcol    = find_span_rawdict(page, FR_COL_TEXT)
 
-    # ── 2. Label barcode "116A..." (size=20, Helvetica-Bold) ──────────────
-    span = find_span(page, OLD_BARCODE_LABEL)
-    if span:
-        replace_text(page, span, new_label)
-        # Le séparateur à y=281.5 est dans la zone du rect blanc → on le redessine
-        redraw_hline(page, 57.0, SEP_LABEL, 339.9, SEP_LABEL, width=0.3)
+    # ── 1. Numéro de colis (Helvetica-Bold, size=8) ────────────────────────
+    # Séparateur à y=199 est AU-DESSUS des majuscules (cap_top ≈ 200.5) → pas couvert
+    if span_tracking:
+        ox, oy = span_tracking["origin"]
+        s      = span_tracking["size"]
+        bbox   = span_tracking["bbox"]
+        cap_h  = CAP_HEBO * s
+        desc   = DESC_HEBO * s
+        # Rect blanc : de la tête des majuscules jusqu'aux descendantes
+        wr = fitz.Rect(bbox[0], oy - cap_h, bbox[2], oy + desc)
+        page.draw_rect(wr, fill=(1, 1, 1), color=None, overlay=True)
+        page.insert_text(fitz.Point(ox, oy), new_tracking,
+                         fontname="hebo", fontsize=s, color=(0, 0, 0))
 
-    # ── 3. Image barcode ──────────────────────────────────────────────────
-    # Pas de rect blanc : la zone a déjà un fond blanc dans le PDF original
-    # On insère sous le séparateur y=351 (BARCODE_RECT commence à y=353)
+    # ── 2. Label barcode "116A 05681027840D" (Helvetica-Bold, size=20) ─────
+    # Séparateur à y=281.5 → rect blanc commence à y=282 (juste en-dessous)
+    # NE PAS redessiner y=281.5 : il couperait le QR code !
+    if span_label:
+        ox, oy = span_label["origin"]
+        s      = span_label["size"]
+        bbox   = span_label["bbox"]
+        desc   = DESC_HEBO * s
+        # Rect blanc depuis y=282 (sous le séparateur) jusqu'au bas des descendantes
+        wr = fitz.Rect(bbox[0], 282, bbox[2], oy + desc)
+        page.draw_rect(wr, fill=(1, 1, 1), color=None, overlay=True)
+        page.insert_text(fitz.Point(ox, oy), new_label,
+                         fontname="hebo", fontsize=s, color=(0, 0, 0))
+
+    # ── 3. Redessiner FR-COL-1175-94RUN (couvert par le rect blanc ci-dessus) ──
+    if span_frcol:
+        ox_fr, oy_fr = span_frcol["origin"]
+        s_fr         = span_frcol["size"]
+        page.insert_text(fitz.Point(ox_fr, oy_fr), FR_COL_TEXT,
+                         fontname="helv", fontsize=s_fr, color=(0, 0, 0))
+
+    # ── 4. Image barcode ──────────────────────────────────────────────────
+    # 4a. Rect blanc sur TOUTE la zone strips pour effacer les anciens barcode
+    #     (commence à y=344 → sous le texte metadata "01/06/26..." à y=334-342)
+    page.draw_rect(BARCODE_WHITE, fill=(1, 1, 1), color=None, overlay=True)
+
+    # 4b. Nouveau barcode à la même taille que Im20 dans l'original (92→303, 344→425)
     bc_png = generate_barcode_png(
-        new_tracking, BARCODE_RECT.width, BARCODE_RECT.height
+        new_tracking, BARCODE_INSERT.width, BARCODE_INSERT.height
     )
-    page.insert_image(BARCODE_RECT, stream=bc_png, keep_proportion=False)
+    page.insert_image(BARCODE_INSERT, stream=bc_png, keep_proportion=False)
+    # Aucun redraw de séparateur : le rect blanc couvre y=350.65 proprement.
 
-    # Redessiner le séparateur épais au-dessus du barcode (couvert par l'image)
-    redraw_hline(page, *SEP_BARCODE, width=SEP_BARCODE_W)
-
-    # ── 4. Sauvegarder ────────────────────────────────────────────────────
+    # ── 5. Sauvegarder ────────────────────────────────────────────────────
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     doc.save(output_path, deflate=True)
     doc.close()
