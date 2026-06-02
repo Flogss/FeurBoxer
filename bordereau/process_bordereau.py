@@ -29,23 +29,24 @@ CAP_HEBO   = 0.72                   # hauteur majuscules / taille
 #              NE PAS redessiner : coupe le QR code !
 #   y=350.65: séparateur barcode                      → couvert par rect blanc, PAS redessiné
 
-# Zone du barcode : même dimensions que Im20 (xref=65, 422×162 à (92,344,303,425))
-# On couvre aussi la zone au-dessus (y=344) avec un rect blanc pour effacer les
-# anciens strips de barcode, sans toucher le texte metadata à y=334-342.
-BARCODE_WHITE  = fitz.Rect(54, 344, 342, 430)    # efface tous les anciens strips
-BARCODE_INSERT = fitz.Rect(92, 344, 303, 425)    # correspond à Im20 (original)
+# Zone du barcode : même dimensions exactes que Im20 (xref=65, 422×162 à (92,344,303,425))
+# Le rect blanc commence à x=58 et finit à x=339 pour NE PAS couvrir les bords
+# verticaux du bordereau à x=56.8 (w=0.71) et x=340.2 (w=0.71).
+BARCODE_WHITE  = fitz.Rect(58, 344, 339, 430)    # intérieur des bords → préserve les lignes
+BARCODE_INSERT = fitz.Rect(92.00, 344.18, 303.26, 425.28)  # = Im20 exact (position originale)
+BARCODE_PX     = (422, 162)                       # = Im20 exact (résolution originale)
 
 
 def format_label(tracking: str) -> str:
     return f"11{tracking[:2]} {tracking[2:]}D"
 
 
-def generate_barcode_png(tracking: str, width_pt: float, height_pt: float) -> bytes:
-    """Code 128 barres fines — genère à 300 dpi, resize à la zone cible."""
+def generate_barcode_png(tracking: str, target_px: tuple) -> bytes:
+    """Code 128 — génère et resize exactement à target_px (w, h) pixels."""
     CODE128 = barcode.get_barcode_class("code128")
     buf = io.BytesIO()
     CODE128(tracking, writer=ImageWriter()).write(buf, options={
-        "module_width":  0.25,
+        "module_width":  0.25,    # barres fines
         "module_height": 10.0,
         "quiet_zone":    1.5,
         "write_text":    False,
@@ -57,11 +58,7 @@ def generate_barcode_png(tracking: str, width_pt: float, height_pt: float) -> by
     })
     buf.seek(0)
     img = Image.open(buf).convert("RGB")
-    # Redimensionner à la taille exacte de la zone
-    dpi = 200
-    w = int(width_pt  * dpi / 72)
-    h = int(height_pt * dpi / 72)
-    img = img.resize((w, h), Image.LANCZOS)
+    img = img.resize(target_px, Image.LANCZOS)
     out = io.BytesIO()
     img.save(out, format="PNG")
     return out.getvalue()
@@ -133,9 +130,7 @@ def process(new_tracking: str, output_path: str) -> None:
     page.draw_rect(BARCODE_WHITE, fill=(1, 1, 1), color=None, overlay=True)
 
     # 4b. Nouveau barcode à la même taille que Im20 dans l'original (92→303, 344→425)
-    bc_png = generate_barcode_png(
-        new_tracking, BARCODE_INSERT.width, BARCODE_INSERT.height
-    )
+    bc_png = generate_barcode_png(new_tracking, BARCODE_PX)
     page.insert_image(BARCODE_INSERT, stream=bc_png, keep_proportion=False)
     # Aucun redraw de séparateur : le rect blanc couvre y=350.65 proprement.
 
