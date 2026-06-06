@@ -537,15 +537,14 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
               <label class="form-label">ADRESSE DE RÉFÉRENCE</label>
               <input id="test-nearby-addr" class="form-input" placeholder="ex: Batiment G, ZAE Les Aubins, Bruyères-sur-Oise 95820 France" style="font-size:.85rem">
             </div>
-            <div class="form-group">
-              <label class="form-label">TYPE(S) DE SOCIÉTÉ <span style="color:var(--dim);font-weight:400;font-size:.75rem">(sélection multiple)</span></label>
-              <div id="nearby-type-btns" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:6px"></div>
-            </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <button class="btn-glow btn-primary" style="padding:10px 22px;font-size:.72rem" onclick="searchNearbyCompanies()">🔍 RECHERCHER</button>
+              <button class="btn-glow btn-primary" style="padding:10px 22px;font-size:.72rem" onclick="searchNearbyCompanies(true)">🔍 RECHERCHER</button>
               <div id="test-nearby-status" style="font-size:.8rem"></div>
             </div>
             <div id="test-nearby-results" style="margin-top:16px"></div>
+            <div id="test-nearby-more" style="display:none;margin-top:4px">
+              <button onclick="searchNearbyCompanies(false)" style="width:100%;padding:10px;background:rgba(0,212,255,0.07);border:1px solid rgba(0,212,255,0.25);border-radius:8px;color:var(--nb);cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.7rem;font-weight:700;transition:.2s">➕ 3 ENTREPRISES SUIVANTES</button>
+            </div>
           </div>
 
           <!-- Simuler commande Telegram -->
@@ -1244,7 +1243,7 @@ function adminNav(section,el){
   document.querySelectorAll('.admin-nav-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');
   document.querySelectorAll('.admin-section').forEach(s=>s.classList.remove('active'));
   document.getElementById('admin-'+section+'-sec').classList.add('active');
-  const fns={dashboard:refreshAdminDashboard,orders:loadAdminOrders,members:loadAdminMembers,messages:loadAdminMessages,categories:renderAdminCats,products:renderAdminProducts,payments:loadAdminPaymentSettings,settings:loadAdminSettings,tests:()=>initNearbyTypes()};
+  const fns={dashboard:refreshAdminDashboard,orders:loadAdminOrders,members:loadAdminMembers,messages:loadAdminMessages,categories:renderAdminCats,products:renderAdminProducts,payments:loadAdminPaymentSettings,settings:loadAdminSettings,tests:()=>{}};
   fns[section]?.();
 }
 
@@ -1334,78 +1333,62 @@ function nextOrderStep(){
 }
 
 // ── Types entreprises (id → label affiché) ──
-const NEARBY_TYPES = [
-  { id:'bureau',      label:'🏢 Bureau / Office' },
-  { id:'societe',     label:'🏭 Société / SA / SAS' },
-  { id:'entrepot',    label:'📦 Entrepôt / Logistique' },
-  { id:'industriel',  label:'⚙️ Zone industrielle' },
-  { id:'immo',        label:'🏠 Agence immobilière' },
-  { id:'comptable',   label:'🧾 Cabinet comptable' },
-  { id:'avocat',      label:'⚖️ Cabinet d\'avocat' },
-  { id:'construction',label:'🔨 Construction / BTP' },
-  { id:'sante',       label:'🏥 Santé / Médical' },
-  { id:'education',   label:'🎓 Éducation' },
-];
-let nearbySelectedTypes = new Set(['bureau','societe','entrepot','industriel']);
+let nearbyAllResults = [];
+let nearbyOffset = 0;
 
-function initNearbyTypes(){
-  const c = document.getElementById('nearby-type-btns');
-  if(!c || c.children.length) return;
-  c.innerHTML = NEARBY_TYPES.map(t=>`
-    <button id="ntype-${t.id}" onclick="toggleNearbyType('${t.id}')"
-      style="padding:6px 12px;border-radius:20px;cursor:pointer;font-size:.74rem;font-weight:600;
-             font-family:'Rajdhani',sans-serif;transition:.15s;border:1px solid;
-             ${nearbySelectedTypes.has(t.id)
-               ? 'background:rgba(0,212,255,0.15);border-color:var(--nb);color:var(--nb);'
-               : 'background:transparent;border-color:var(--border);color:var(--dim);'}">
-      ${t.label}
-    </button>`).join('');
+function renderNearbyPage() {
+  const page = nearbyAllResults.slice(nearbyOffset, nearbyOffset + 3);
+  const container = document.getElementById('test-nearby-results');
+  const moreBtn   = document.getElementById('test-nearby-more');
+  if (!page.length) {
+    container.innerHTML = '<p style="color:var(--dim);font-size:.82rem">Plus d\'entreprises disponibles dans ce secteur.</p>';
+    moreBtn.style.display = 'none';
+    return;
+  }
+  container.innerHTML = page.map((c, i) => `
+    <div style="background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:var(--nb)">${nearbyOffset + i + 1}. ${c.name}</div>
+        <span style="font-size:.68rem;color:var(--nv);background:rgba(155,93,229,0.1);padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0">${c.type}</span>
+      </div>
+      <div style="font-size:.82rem;line-height:1.8">
+        <div>📍 <strong>${c.address}</strong></div>
+        <div>${c.phone ? '📞 <strong>' + c.phone + '</strong>' : '📞 <span style="color:var(--dim)">Tél. non disponible</span>'}</div>
+      </div>
+      <button onclick="navigator.clipboard?.writeText('${c.name.replace(/'/g,"\\'")}\\n${c.address}${c.phone ? '\\n' + c.phone : ''}').then(()=>showToast('📋 Copié !','success'))"
+        style="margin-top:8px;font-size:.72rem;color:var(--nb);background:none;border:1px solid rgba(0,212,255,0.3);padding:4px 12px;border-radius:5px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700">
+        📋 COPIER
+      </button>
+    </div>`).join('');
+  nearbyOffset += 3;
+  moreBtn.style.display = nearbyOffset < nearbyAllResults.length ? 'block' : 'none';
 }
 
-function toggleNearbyType(id){
-  if(nearbySelectedTypes.has(id)) nearbySelectedTypes.delete(id);
-  else nearbySelectedTypes.add(id);
-  const btn = document.getElementById('ntype-'+id);
-  if(!btn) return;
-  const on = nearbySelectedTypes.has(id);
-  btn.style.background = on ? 'rgba(0,212,255,0.15)' : 'transparent';
-  btn.style.borderColor = on ? 'var(--nb)' : 'var(--border)';
-  btn.style.color = on ? 'var(--nb)' : 'var(--dim)';
-}
-
-async function searchNearbyCompanies(){
-  initNearbyTypes();
+async function searchNearbyCompanies(fresh = true) {
   const addr = document.getElementById('test-nearby-addr').value.trim();
-  if(!addr){showToast('⚠️ Entrez une adresse','error');return;}
-  if(!nearbySelectedTypes.size){showToast('⚠️ Sélectionnez au moins un type','error');return;}
-  const status  = document.getElementById('test-nearby-status');
-  const results = document.getElementById('test-nearby-results');
-  status.innerHTML='<span style="color:var(--dim)">⏳ Recherche en cours...</span>';
-  results.innerHTML='';
-  try{
-    const r = await apiFetch('POST','/test/nearby-companies',{
-      address:addr,
-      types:[...nearbySelectedTypes]
-    },{admin:true});
-    status.innerHTML=`<span style="color:var(--nb);font-size:.75rem">📍 ${r.geocoded}</span>`;
-    if(!r.results.length){
-      results.innerHTML='<p style="color:var(--dim);font-size:.82rem">Aucune entreprise trouvée — essayez d\'autres types ou une zone plus large.</p>';
+  if (!addr) { showToast('⚠️ Entrez une adresse', 'error'); return; }
+
+  if (!fresh) { renderNearbyPage(); return; } // pagination locale
+
+  const status = document.getElementById('test-nearby-status');
+  document.getElementById('test-nearby-results').innerHTML = '';
+  document.getElementById('test-nearby-more').style.display = 'none';
+  status.innerHTML = '<span style="color:var(--dim)">⏳ Recherche en cours...</span>';
+  nearbyAllResults = [];
+  nearbyOffset = 0;
+
+  try {
+    const r = await apiFetch('POST', '/test/nearby-companies', { address: addr }, { admin: true });
+    status.innerHTML = `<span style="color:var(--nb);font-size:.75rem">📍 ${r.geocoded}</span>`;
+    if (!r.results.length) {
+      document.getElementById('test-nearby-results').innerHTML =
+        '<p style="color:var(--dim);font-size:.82rem">Aucune entreprise trouvée — essayez une adresse différente.</p>';
       return;
     }
-    results.innerHTML=r.results.map((c,i)=>`
-      <div style="background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
-          <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:var(--nb)">${i+1}. ${c.name}</div>
-          <span style="font-size:.68rem;color:var(--nv);background:rgba(155,93,229,0.1);padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0">${c.type}</span>
-        </div>
-        <div style="font-size:.82rem;line-height:1.8">
-          <div>📍 <strong>${c.address}</strong></div>
-          <div>${c.phone?'📞 <strong>'+c.phone+'</strong>':'📞 <span style="color:var(--dim)">Tél. non disponible</span>'}</div>
-        </div>
-        <button onclick="navigator.clipboard?.writeText('${c.name.replace(/'/g,"\\'")}\\n${c.address}${c.phone?'\\n'+c.phone:''}').then(()=>showToast('📋 Copié !','success'))" style="margin-top:8px;font-size:.72rem;color:var(--nb);background:none;border:1px solid rgba(0,212,255,0.3);padding:4px 12px;border-radius:5px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700">📋 COPIER</button>
-      </div>`).join('');
-  }catch(e){
-    status.innerHTML=`<span style="color:var(--np)">❌ ${e.message}</span>`;
+    nearbyAllResults = r.results;
+    renderNearbyPage();
+  } catch(e) {
+    status.innerHTML = `<span style="color:var(--np)">❌ ${e.message}</span>`;
   }
 }
 

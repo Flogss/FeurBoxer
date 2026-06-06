@@ -371,24 +371,6 @@ function typeLabel(raw) {
   return TYPE_FR[raw.toLowerCase()] || (raw.charAt(0).toUpperCase() + raw.slice(1));
 }
 
-// Filtre post-requête selon le type sélectionné
-function matchesTypes(tags, types) {
-  if (!types.length) return true;
-  const officeVal = (tags.office || '').toLowerCase();
-  const bldg      = (tags.building || '').toLowerCase();
-  const landuse   = (tags.landuse  || '').toLowerCase();
-  if (types.includes('bureau')       && tags.office)                                      return true;
-  if (types.includes('societe')      && tags.company)                                     return true;
-  if (types.includes('entrepot')     && (bldg === 'warehouse' || tags.industrial))        return true;
-  if (types.includes('industriel')   && (landuse === 'industrial' || bldg === 'industrial')) return true;
-  if (types.includes('immo')         && officeVal === 'estate_agent')                     return true;
-  if (types.includes('comptable')    && officeVal === 'accountant')                       return true;
-  if (types.includes('avocat')       && officeVal === 'lawyer')                           return true;
-  if (types.includes('construction') && ['construction','architect','engineering'].includes(officeVal)) return true;
-  if (types.includes('sante')        && ['healthcare','physician','doctor','clinic','hospital'].includes(tags.amenity || officeVal)) return true;
-  if (types.includes('education')    && ['school','university','college','educational_institution'].includes(tags.amenity || officeVal)) return true;
-  return false;
-}
 
 async function safeJson(resp) {
   const txt = await resp.text();
@@ -422,12 +404,11 @@ async function resolveAddress(elat, elon) {
 }
 
 app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
-  const { address, types } = req.body;
-  const sel = Array.isArray(types) && types.length ? types : ['bureau','societe','entrepot','industriel'];
+  const { address } = req.body;
   if (!address) return res.status(400).json({ error: 'Adresse requise' });
 
   try {
-    // 1. Géocodage mondial (pas de restriction de pays)
+    // 1. Géocodage mondial
     const geoResp = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
       { headers: NOM_UA }
@@ -437,8 +418,8 @@ app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
     if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — soyez plus précis' });
     const { lat, lon, display_name } = geoData[0];
 
-    // 2. Overpass — requête simple sans regex, rayon progressif
-    let candidates = [];
+    // 2. Overpass — requête large sans filtre de type, rayon progressif
+    let rawElements = [];
     for (const radius of [500, 1000, 2000, 3500]) {
       const ar = `around:${radius},${lat},${lon}`;
       const q = `[out:json][timeout:25];(
@@ -446,39 +427,37 @@ node["name"]["office"](${ar});
 node["name"]["company"](${ar});
 node["name"]["industrial"](${ar});
 way["name"]["office"](${ar});
+way["name"]["company"](${ar});
 way["name"]["landuse"="industrial"](${ar});
 way["name"]["building"="warehouse"](${ar});
 way["name"]["building"="industrial"](${ar});
 way["name"]["building"="commercial"](${ar});
-node["name"]["amenity"="hospital"](${ar});
-node["name"]["amenity"="school"](${ar});
-);out body center 100;`;
+way["name"]["building"="office"](${ar});
+);out body center 150;`;
 
       const ov = await fetch('https://overpass-api.de/api/interpreter', {
-        method:'POST', body:q,
-        headers:{'Content-Type':'text/plain','User-Agent':'FeurBoxing/1.0'}
+        method: 'POST', body: q,
+        headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
       });
-      if (!ov.ok) { console.error('Overpass HTTP', ov.status); break; }
+      if (!ov.ok) { console.error('Overpass HTTP', ov.status); continue; }
       const ovd = await safeJson(ov);
       const seen = new Set();
-      candidates = (ovd.elements || [])
-        .filter(e => {
-          const n = e.tags?.name;
-          if (!n || seen.has(n)) return false;
-          seen.add(n);
-          return matchesTypes(e.tags, sel);
-        });
-      if (candidates.length >= 6) break;
+      rawElements = (ovd.elements || []).filter(e => {
+        const n = e.tags?.name;
+        if (!n || seen.has(n)) return false;
+        seen.add(n); return true;
+      });
+      if (rawElements.length >= 15) break; // assez pour paginer
     }
 
-    // 3. Résultats avec adresse numérotée obligatoire
+    // 3. Résoudre les adresses (jusqu'à 15 résultats pour pagination côté client)
     const results = [];
-    for (const e of candidates) {
-      if (results.length >= 3) break;
+    for (const e of rawElements) {
+      if (results.length >= 15) break;
       const t = e.tags || {};
       let addr = null;
       if (t['addr:housenumber'] && t['addr:street']) {
-        addr = `${t['addr:housenumber']} ${t['addr:street']}${t['addr:postcode'] ? ', '+t['addr:postcode'] : ''} ${t['addr:city'] || ''}`.trim();
+        addr = `${t['addr:housenumber']} ${t['addr:street']}${t['addr:postcode'] ? ', ' + t['addr:postcode'] : ''} ${t['addr:city'] || ''}`.trim();
       }
       if (!addr) {
         const elat = e.lat ?? e.center?.lat;
