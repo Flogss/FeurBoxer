@@ -354,58 +354,86 @@ app.get('/api/stats', adminAuth, (req, res) => {
 });
 
 // ── NEARBY COMPANIES ──
+const NOM_HEADERS = { 'User-Agent': 'FeurBoxing/1.0', 'Accept-Language': 'fr' };
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, { headers: NOM_HEADERS });
+    const d = await r.json();
+    const a = d.address || {};
+    return [a.house_number, a.road, a.postcode, a.city || a.town || a.village || a.municipality]
+      .filter(Boolean).join(' ') || null;
+  } catch { return null; }
+}
+
 app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
   const { address } = req.body;
   if (!address) return res.status(400).json({ error: 'Adresse requise' });
 
   try {
-    // 1. Géocodage via Nominatim (gratuit, pas de clé)
-    const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`;
-    const geoResp = await fetch(geoUrl, { headers: { 'User-Agent': 'FeurBoxing/1.0 contact@feurboxing.fr' } });
+    // 1. Géocodage
+    const geoResp = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+      { headers: NOM_HEADERS }
+    );
     const geoData = await geoResp.json();
-    if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — essayez une adresse plus précise' });
-
+    if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — soyez plus précis' });
     const { lat, lon, display_name } = geoData[0];
 
-    // 2. Overpass API — entreprises dans un rayon de 1km
-    const q = `[out:json][timeout:20];(
-      node["name"]["office"](around:1000,${lat},${lon});
-      node["name"]["shop"~"supermarket|wholesale|hardware|electronics|furniture|clothes|department_store"](around:1000,${lat},${lon});
-      node["name"]["industrial"](around:1000,${lat},${lon});
-      way["name"]["landuse"="industrial"](around:1000,${lat},${lon});
-      way["name"]["building"~"commercial|industrial|warehouse|office"](around:1000,${lat},${lon});
-    );out body 30;`;
-
-    const ovResp = await fetch(`https://overpass-api.de/api/interpreter`, {
-      method: 'POST',
-      body: q,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'FeurBoxing/1.0' }
-    });
-    const ovData = await ovResp.json();
-
-    // 3. Formater les résultats — filtrer les entrées avec un nom et une adresse
-    const seen = new Set();
-    const results = (ovData.elements || [])
-      .filter(e => {
-        const name = e.tags?.name;
-        if (!name || seen.has(name)) return false;
-        seen.add(name);
-        return true;
-      })
-      .slice(0, 3)
-      .map(e => {
-        const t = e.tags || {};
-        const addrParts = [
-          t['addr:housenumber'], t['addr:street'],
-          t['addr:postcode'], t['addr:city']
-        ].filter(Boolean);
-        return {
-          name:    t.name,
-          address: addrParts.length ? addrParts.join(' ') : '(adresse non disponible)',
-          phone:   t.phone || t['contact:phone'] || t['contact:mobile'] || null,
-          type:    t.office || t.shop || t.industrial || t.amenity || 'société',
-        };
+    // 2. Overpass — priorité : offices, industrial, company (pas shops)
+    //    Rayon progressif 500 → 1000 → 2000m jusqu'à avoir ≥ 3 candidats
+    let candidates = [];
+    for (const r of [500, 1000, 2000, 3000]) {
+      const q = `[out:json][timeout:25];(
+        node["name"]["office"](around:${r},${lat},${lon});
+        node["name"]["company"](around:${r},${lat},${lon});
+        node["name"]["industrial"](around:${r},${lat},${lon});
+        way["name"]["office"](around:${r},${lat},${lon});
+        way["name"]["company"](around:${r},${lat},${lon});
+        way["name"]["landuse"~"^(industrial|commercial)$"](around:${r},${lat},${lon});
+        way["name"]["building"~"^(commercial|industrial|warehouse|office|retail|storage_tank)$"](around:${r},${lat},${lon});
+        relation["name"]["office"](around:${r},${lat},${lon});
+      );out body center 60;`;
+      const ov = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST', body: q,
+        headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
       });
+      const ovd = await ov.json();
+      const seen = new Set();
+      candidates = (ovd.elements || []).filter(e => {
+        const n = e.tags?.name;
+        if (!n || seen.has(n)) return false;
+        seen.add(n); return true;
+      });
+      if (candidates.length >= 3) break;
+    }
+
+    // 3. Construire les 3 résultats — reverse geocode si adresse manquante
+    const results = [];
+    for (const e of candidates) {
+      if (results.length >= 3) break;
+      const t = e.tags || {};
+
+      // Adresse depuis les tags OSM
+      const osmAddr = [t['addr:housenumber'], t['addr:street'], t['addr:postcode'], t['addr:city']]
+        .filter(Boolean).join(' ');
+
+      // Si adresse incomplète → reverse geocode avec le centroïde de l'élément
+      let addr = osmAddr.length > 5 ? osmAddr : null;
+      if (!addr) {
+        const elat = e.lat ?? e.center?.lat;
+        const elon = e.lon ?? e.center?.lon;
+        if (elat && elon) addr = await reverseGeocode(elat, elon);
+      }
+      if (!addr) continue; // toujours pas d'adresse → on passe au suivant
+
+      results.push({
+        name:    t.name,
+        address: addr,
+        phone:   t.phone || t['contact:phone'] || t['contact:mobile'] || null,
+        type:    t.office || t.company || t.industrial || t.building || 'société',
+      });
+    }
 
     res.json({ geocoded: display_name, lat, lon, results });
   } catch(e) {
