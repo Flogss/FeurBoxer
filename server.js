@@ -403,8 +403,28 @@ async function resolveAddress(lat, lon) {
   return null;
 }
 
+// Mapping type sélectionné → sous-requêtes Overpass
+function buildTypeQuery(types, r, lat, lon) {
+  const a = (r) => `around:${r},${lat},${lon}`;
+  const parts = [];
+  if (types.includes('bureau'))       parts.push(`node["name"]["office"](${a(r)});way["name"]["office"](${a(r)});relation["name"]["office"](${a(r)});`);
+  if (types.includes('societe'))      parts.push(`node["name"]["company"](${a(r)});way["name"]["company"](${a(r)});`);
+  if (types.includes('entrepot'))     parts.push(`way["name"]["building"~"^(warehouse|storage_tank)$"](${a(r)});node["name"]["industrial"](${a(r)});`);
+  if (types.includes('industriel'))   parts.push(`way["name"]["landuse"~"^(industrial|commercial)$"](${a(r)});way["name"]["building"~"^(industrial|commercial)$"](${a(r)});`);
+  if (types.includes('immo'))         parts.push(`node["name"]["office"="estate_agent"](${a(r)});way["name"]["office"="estate_agent"](${a(r)});`);
+  if (types.includes('comptable'))    parts.push(`node["name"]["office"="accountant"](${a(r)});way["name"]["office"="accountant"](${a(r)});`);
+  if (types.includes('avocat'))       parts.push(`node["name"]["office"="lawyer"](${a(r)});way["name"]["office"="lawyer"](${a(r)});`);
+  if (types.includes('construction')) parts.push(`node["name"]["office"~"^(construction|architect|engineering)$"](${a(r)});way["name"]["office"~"^(construction|architect|engineering)$"](${a(r)});`);
+  if (types.includes('sante'))        parts.push(`node["name"]["office"~"^(healthcare|physician|doctor)$"](${a(r)});node["name"]["amenity"~"^(clinic|hospital)$"](${a(r)});`);
+  if (types.includes('education'))    parts.push(`node["name"]["office"="educational_institution"](${a(r)});node["name"]["amenity"~"^(school|college|university)$"](${a(r)});`);
+  // Fallback si aucun type reconnu
+  if (!parts.length) parts.push(`node["name"]["office"](${a(r)});node["name"]["company"](${a(r)});`);
+  return parts.join('\n');
+}
+
 app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
-  const { address } = req.body;
+  const { address, types } = req.body;
+  const selectedTypes = Array.isArray(types) && types.length ? types : ['bureau','societe','entrepot','industriel'];
   if (!address) return res.status(400).json({ error: 'Adresse requise' });
 
   try {
@@ -417,20 +437,10 @@ app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
     if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — soyez plus précis' });
     const { lat, lon, display_name } = geoData[0];
 
-    // 2. Overpass — offices, industrial, company (pas de commerces de détail)
-    //    Rayon progressif jusqu'à avoir ≥ 6 candidats (marge pour les sans-adresse)
+    // 2. Overpass — types sélectionnés, rayon progressif
     let candidates = [];
     for (const r of [500, 1000, 2000, 3000]) {
-      const q = `[out:json][timeout:25];(
-        node["name"]["office"](around:${r},${lat},${lon});
-        node["name"]["company"](around:${r},${lat},${lon});
-        node["name"]["industrial"](around:${r},${lat},${lon});
-        way["name"]["office"](around:${r},${lat},${lon});
-        way["name"]["company"](around:${r},${lat},${lon});
-        way["name"]["landuse"~"^(industrial|commercial)$"](around:${r},${lat},${lon});
-        way["name"]["building"~"^(commercial|industrial|warehouse|office|retail|storage_tank)$"](around:${r},${lat},${lon});
-        relation["name"]["office"](around:${r},${lat},${lon});
-      );out body center 80;`;
+      const q = `[out:json][timeout:25];(\n${buildTypeQuery(selectedTypes, r, lat, lon)}\n);out body center 80;`;
       const ov = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST', body: q,
         headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
