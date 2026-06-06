@@ -353,6 +353,67 @@ app.get('/api/stats', adminAuth, (req, res) => {
   res.json({ total: orders.length, revenue, pending, confirmed, avgRating, topProducts, revenueByDay, membersCount: members.length });
 });
 
+// ── NEARBY COMPANIES ──
+app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
+  const { address } = req.body;
+  if (!address) return res.status(400).json({ error: 'Adresse requise' });
+
+  try {
+    // 1. Géocodage via Nominatim (gratuit, pas de clé)
+    const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`;
+    const geoResp = await fetch(geoUrl, { headers: { 'User-Agent': 'FeurBoxing/1.0 contact@feurboxing.fr' } });
+    const geoData = await geoResp.json();
+    if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — essayez une adresse plus précise' });
+
+    const { lat, lon, display_name } = geoData[0];
+
+    // 2. Overpass API — entreprises dans un rayon de 1km
+    const q = `[out:json][timeout:20];(
+      node["name"]["office"](around:1000,${lat},${lon});
+      node["name"]["shop"~"supermarket|wholesale|hardware|electronics|furniture|clothes|department_store"](around:1000,${lat},${lon});
+      node["name"]["industrial"](around:1000,${lat},${lon});
+      way["name"]["landuse"="industrial"](around:1000,${lat},${lon});
+      way["name"]["building"~"commercial|industrial|warehouse|office"](around:1000,${lat},${lon});
+    );out body 30;`;
+
+    const ovResp = await fetch(`https://overpass-api.de/api/interpreter`, {
+      method: 'POST',
+      body: q,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'FeurBoxing/1.0' }
+    });
+    const ovData = await ovResp.json();
+
+    // 3. Formater les résultats — filtrer les entrées avec un nom et une adresse
+    const seen = new Set();
+    const results = (ovData.elements || [])
+      .filter(e => {
+        const name = e.tags?.name;
+        if (!name || seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      })
+      .slice(0, 3)
+      .map(e => {
+        const t = e.tags || {};
+        const addrParts = [
+          t['addr:housenumber'], t['addr:street'],
+          t['addr:postcode'], t['addr:city']
+        ].filter(Boolean);
+        return {
+          name:    t.name,
+          address: addrParts.length ? addrParts.join(' ') : '(adresse non disponible)',
+          phone:   t.phone || t['contact:phone'] || t['contact:mobile'] || null,
+          type:    t.office || t.shop || t.industrial || t.amenity || 'société',
+        };
+      });
+
+    res.json({ geocoded: display_name, lat, lon, results });
+  } catch(e) {
+    console.error('Nearby companies error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── TEST NOTIFY ──
 app.post('/api/test/notify', adminAuth, async (req, res) => {
   const { text } = req.body;

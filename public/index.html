@@ -529,6 +529,21 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
             </div>
           </div>
 
+          <!-- Recherche entreprises à proximité -->
+          <div class="glass-card" style="margin-bottom:16px;border-color:rgba(0,212,255,0.2)">
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--nb);margin-bottom:6px">🏢 ENTREPRISES À PROXIMITÉ</h3>
+            <p style="color:var(--dim);font-size:.8rem;margin-bottom:14px">Donne 3 entreprises réelles proches d'une adresse avec leur téléphone.</p>
+            <div class="form-group">
+              <label class="form-label">ADRESSE DE RÉFÉRENCE</label>
+              <input id="test-nearby-addr" class="form-input" placeholder="ex: Batiment G, ZAE Les Aubins, Bruyères-sur-Oise 95820 France" style="font-size:.85rem">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <button class="btn-glow btn-primary" style="padding:10px 22px;font-size:.72rem" onclick="searchNearbyCompanies()">🔍 RECHERCHER</button>
+              <div id="test-nearby-status" style="font-size:.8rem"></div>
+            </div>
+            <div id="test-nearby-results" style="margin-top:16px"></div>
+          </div>
+
           <!-- Simuler commande Telegram -->
           <div class="glass-card" style="border-color:rgba(155,93,229,0.2)">
             <h3 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--nv);margin-bottom:14px">📲 SIMULER UNE NOTIFICATION ADMIN</h3>
@@ -1312,6 +1327,35 @@ function nextOrderStep(){
   if(idx===-1||idx===flow.length-1){showToast('ℹ️ Commande déjà au statut final','info');return;}
   document.getElementById('odet-status').value=flow[idx+1];
   saveOrderStatus();
+}
+
+async function searchNearbyCompanies(){
+  const addr = document.getElementById('test-nearby-addr').value.trim();
+  if(!addr){showToast('⚠️ Entrez une adresse','error');return;}
+  const status  = document.getElementById('test-nearby-status');
+  const results = document.getElementById('test-nearby-results');
+  status.innerHTML='<span style="color:var(--dim)">⏳ Recherche en cours...</span>';
+  results.innerHTML='';
+  try{
+    const r = await apiFetch('POST','/test/nearby-companies',{address:addr},{admin:true});
+    status.innerHTML=`<span style="color:var(--nb);font-size:.75rem">📍 ${r.geocoded}</span>`;
+    if(!r.results.length){
+      results.innerHTML='<p style="color:var(--dim);font-size:.82rem">Aucune entreprise trouvée dans ce secteur.</p>';
+      return;
+    }
+    results.innerHTML=r.results.map((c,i)=>`
+      <div style="background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:var(--nb);margin-bottom:6px">${i+1}. ${c.name}</div>
+        <div style="font-size:.82rem;line-height:1.7">
+          <div>📍 ${c.address}</div>
+          <div>${c.phone?'📞 <strong>'+c.phone+'</strong>':'📞 <span style="color:var(--dim)">Tél. non disponible</span>'}</div>
+          <div style="color:var(--dim);font-size:.72rem;margin-top:4px;font-family:\'Share Tech Mono\',monospace">${c.type.toUpperCase()}</div>
+        </div>
+        <button onclick="navigator.clipboard?.writeText('${c.name}\\n${c.address}${c.phone?'\\n'+c.phone:''}').then(()=>showToast('📋 Copié !','success'))" style="margin-top:8px;font-size:.7rem;color:var(--nb);background:none;border:1px solid rgba(0,212,255,0.3);padding:4px 10px;border-radius:5px;cursor:pointer;font-family:\'Rajdhani\',sans-serif;font-weight:700">📋 COPIER</button>
+      </div>`).join('');
+  }catch(e){
+    status.innerHTML=`<span style="color:var(--np)">❌ ${e.message}</span>`;
+  }
 }
 
 async function testGenerateBordereau(){
