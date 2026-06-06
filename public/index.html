@@ -532,18 +532,29 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
           <!-- Recherche entreprises à proximité -->
           <div class="glass-card" style="margin-bottom:16px;border-color:rgba(0,212,255,0.2)">
             <h3 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--nb);margin-bottom:6px">🏢 ENTREPRISES À PROXIMITÉ</h3>
-            <p style="color:var(--dim);font-size:.8rem;margin-bottom:14px">3 entreprises réelles proches d'une adresse avec numéro et téléphone.</p>
+            <p style="color:var(--dim);font-size:.8rem;margin-bottom:14px">Entreprises réelles proches d'une adresse — vérifiables sur Google Maps.</p>
             <div class="form-group">
               <label class="form-label">ADRESSE DE RÉFÉRENCE</label>
-              <input id="test-nearby-addr" class="form-input" placeholder="ex: Batiment G, ZAE Les Aubins, Bruyères-sur-Oise 95820 France" style="font-size:.85rem">
+              <input id="test-nearby-addr" class="form-input" placeholder="ex: ZAE Les Aubins, Bruyères-sur-Oise 95820" style="font-size:.85rem" onkeypress="if(event.key==='Enter')searchNearbyCompanies(true)">
             </div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <button class="btn-glow btn-primary" style="padding:10px 22px;font-size:.72rem" onclick="searchNearbyCompanies(true)">🔍 RECHERCHER</button>
-              <div id="test-nearby-status" style="font-size:.8rem"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button class="btn-glow btn-primary" style="padding:10px 20px;font-size:.72rem" onclick="searchNearbyCompanies(true)">🔍 RECHERCHER</button>
+              <button onclick="toggleNearbyHistory()" style="padding:10px 14px;background:rgba(155,93,229,0.1);border:1px solid var(--nv);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.68rem;font-weight:700">🕐 HISTORIQUE</button>
+              <div id="test-nearby-status" style="font-size:.8rem;flex:1"></div>
             </div>
-            <div id="test-nearby-results" style="margin-top:16px"></div>
-            <div id="test-nearby-more" style="display:none;margin-top:4px">
-              <button onclick="searchNearbyCompanies(false)" style="width:100%;padding:10px;background:rgba(0,212,255,0.07);border:1px solid rgba(0,212,255,0.25);border-radius:8px;color:var(--nb);cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.7rem;font-weight:700;transition:.2s">➕ 3 ENTREPRISES SUIVANTES</button>
+            <!-- Historique -->
+            <div id="nearby-history-panel" style="display:none;margin-top:12px;background:rgba(155,93,229,0.05);border:1px solid rgba(155,93,229,0.2);border-radius:10px;padding:12px">
+              <div style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:var(--nv);margin-bottom:8px">🕐 HISTORIQUE DES RECHERCHES</div>
+              <div id="nearby-history-list"></div>
+            </div>
+            <!-- Résultats -->
+            <div id="test-nearby-results" style="margin-top:14px"></div>
+            <!-- Pagination -->
+            <div id="test-nearby-nav" style="display:none;margin-top:4px;display:none;gap:8px">
+              <div style="display:flex;gap:8px">
+                <button id="nearby-prev-btn" onclick="stepNearby(-1)" style="flex:1;padding:9px;background:rgba(155,93,229,0.08);border:1px solid rgba(155,93,229,0.3);border-radius:8px;color:var(--nv);cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.68rem;font-weight:700">◀ PRÉCÉDENTES</button>
+                <button id="nearby-next-btn" onclick="stepNearby(1)"  style="flex:1;padding:9px;background:rgba(0,212,255,0.07);border:1px solid rgba(0,212,255,0.25);border-radius:8px;color:var(--nb);cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.68rem;font-weight:700">SUIVANTES ▶</button>
+              </div>
             </div>
           </div>
 
@@ -1336,56 +1347,114 @@ function nextOrderStep(){
 let nearbyAllResults = [];
 let nearbyOffset = 0;
 
+// ── Historique (localStorage) ───────────────────────────────────────────────
+function getNearbyHistory() { try { return JSON.parse(localStorage.getItem('nb_history')||'[]'); } catch{ return []; } }
+function saveNearbyHistory(addr, results) {
+  const h = getNearbyHistory().filter(x => x.addr !== addr).slice(0, 19);
+  h.unshift({ addr, date: new Date().toLocaleString('fr-FR'), results });
+  localStorage.setItem('nb_history', JSON.stringify(h));
+}
+function toggleNearbyHistory() {
+  const panel = document.getElementById('nearby-history-panel');
+  const open  = panel.style.display === 'block';
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) renderNearbyHistoryList();
+}
+function renderNearbyHistoryList() {
+  const h = getNearbyHistory();
+  const list = document.getElementById('nearby-history-list');
+  if (!h.length) { list.innerHTML = '<p style="color:var(--dim);font-size:.8rem">Aucune recherche</p>'; return; }
+  list.innerHTML = h.map((item, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:.82rem;color:var(--text)">${item.addr}</div>
+        <div style="font-size:.7rem;color:var(--dim)">${item.date} — ${item.results.length} résultat(s)</div>
+      </div>
+      <button onclick="restoreNearbyHistory(${i})" style="font-size:.7rem;color:var(--nb);background:none;border:1px solid rgba(0,212,255,0.3);padding:4px 10px;border-radius:5px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;white-space:nowrap;margin-left:8px">↩ CHARGER</button>
+    </div>`).join('');
+}
+function restoreNearbyHistory(i) {
+  const item = getNearbyHistory()[i];
+  if (!item) return;
+  document.getElementById('test-nearby-addr').value = item.addr;
+  document.getElementById('nearby-history-panel').style.display = 'none';
+  nearbyAllResults = item.results;
+  nearbyOffset = 0;
+  document.getElementById('test-nearby-status').innerHTML = `<span style="color:var(--nv);font-size:.75rem">↩ Chargé depuis l'historique</span>`;
+  renderNearbyPage();
+}
+
+// ── Pagination ──────────────────────────────────────────────────────────────
 function renderNearbyPage() {
   const page = nearbyAllResults.slice(nearbyOffset, nearbyOffset + 3);
   const container = document.getElementById('test-nearby-results');
-  const moreBtn   = document.getElementById('test-nearby-more');
+  const nav       = document.getElementById('test-nearby-nav');
+  const prevBtn   = document.getElementById('nearby-prev-btn');
+  const nextBtn   = document.getElementById('nearby-next-btn');
+
   if (!page.length) {
-    container.innerHTML = '<p style="color:var(--dim);font-size:.82rem">Plus d\'entreprises disponibles dans ce secteur.</p>';
-    moreBtn.style.display = 'none';
+    container.innerHTML = '<p style="color:var(--dim);font-size:.82rem">Plus d\'entreprises disponibles.</p>';
+    nav.style.display = 'none';
     return;
   }
-  container.innerHTML = page.map((c, i) => `
+
+  container.innerHTML = page.map((c, i) => {
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.name+' '+c.address)}`;
+    const copyTxt = `${c.name}\\n${c.address}`;
+    return `
     <div style="background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
         <div style="font-family:'Orbitron',sans-serif;font-size:.8rem;color:var(--nb)">${nearbyOffset + i + 1}. ${c.name}</div>
-        <span style="font-size:.68rem;color:var(--nv);background:rgba(155,93,229,0.1);padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0">${c.type}</span>
+        <span style="font-size:.66rem;color:var(--nv);background:rgba(155,93,229,0.1);padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0">${c.type}</span>
       </div>
-      <div style="font-size:.82rem;line-height:1.8">
-        <div>📍 <strong>${c.address}</strong></div>
-        <div>${c.phone ? '📞 <strong>' + c.phone + '</strong>' : '📞 <span style="color:var(--dim)">Tél. non disponible</span>'}</div>
+      <div style="font-size:.85rem;color:var(--text);margin-bottom:10px">📍 <strong>${c.address}</strong></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="navigator.clipboard?.writeText('${copyTxt.replace(/'/g,"\\'")}').then(()=>showToast('📋 Copié !','success'))"
+          style="font-size:.7rem;color:var(--nb);background:none;border:1px solid rgba(0,212,255,0.3);padding:5px 12px;border-radius:5px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700">📋 COPIER</button>
+        <a href="${mapsUrl}" target="_blank"
+          style="font-size:.7rem;color:var(--ng);background:none;border:1px solid rgba(57,255,20,0.3);padding:5px 12px;border-radius:5px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;text-decoration:none">🗺 GOOGLE MAPS</a>
       </div>
-      <button onclick="navigator.clipboard?.writeText('${c.name.replace(/'/g,"\\'")}\\n${c.address}${c.phone ? '\\n' + c.phone : ''}').then(()=>showToast('📋 Copié !','success'))"
-        style="margin-top:8px;font-size:.72rem;color:var(--nb);background:none;border:1px solid rgba(0,212,255,0.3);padding:4px 12px;border-radius:5px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700">
-        📋 COPIER
-      </button>
-    </div>`).join('');
-  nearbyOffset += 3;
-  moreBtn.style.display = nearbyOffset < nearbyAllResults.length ? 'block' : 'none';
+    </div>`; }).join('');
+
+  nav.style.display = 'flex';
+  prevBtn.style.display = nearbyOffset > 0 ? '' : 'none';
+  nextBtn.style.display = nearbyOffset + 3 < nearbyAllResults.length ? '' : 'none';
+  if (nearbyOffset === 0 && nearbyOffset + 3 >= nearbyAllResults.length) nav.style.display = 'none';
+}
+
+function stepNearby(dir) {
+  nearbyOffset = Math.max(0, Math.min(nearbyOffset + dir * 3, nearbyAllResults.length - 1));
+  renderNearbyPage();
+  document.getElementById('test-nearby-results').scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
 async function searchNearbyCompanies(fresh = true) {
   const addr = document.getElementById('test-nearby-addr').value.trim();
   if (!addr) { showToast('⚠️ Entrez une adresse', 'error'); return; }
 
-  if (!fresh) { renderNearbyPage(); return; } // pagination locale
-
   const status = document.getElementById('test-nearby-status');
+
+  if (!fresh) {
+    stepNearby(1);
+    return;
+  }
+
   document.getElementById('test-nearby-results').innerHTML = '';
-  document.getElementById('test-nearby-more').style.display = 'none';
+  document.getElementById('test-nearby-nav').style.display = 'none';
   status.innerHTML = '<span style="color:var(--dim)">⏳ Recherche en cours...</span>';
   nearbyAllResults = [];
   nearbyOffset = 0;
 
   try {
     const r = await apiFetch('POST', '/test/nearby-companies', { address: addr }, { admin: true });
-    status.innerHTML = `<span style="color:var(--nb);font-size:.75rem">📍 ${r.geocoded}</span>`;
+    status.innerHTML = `<span style="color:var(--nb);font-size:.75rem">📍 ${r.geocoded} — ${r.results.length} trouvée(s)</span>`;
     if (!r.results.length) {
       document.getElementById('test-nearby-results').innerHTML =
         '<p style="color:var(--dim);font-size:.82rem">Aucune entreprise trouvée — essayez une adresse différente.</p>';
       return;
     }
     nearbyAllResults = r.results;
+    saveNearbyHistory(addr, r.results);
     renderNearbyPage();
   } catch(e) {
     status.innerHTML = `<span style="color:var(--np)">❌ ${e.message}</span>`;

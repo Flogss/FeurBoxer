@@ -378,6 +378,13 @@ async function safeJson(resp) {
   return JSON.parse(txt);
 }
 
+function buildAddr(num, street, postcode, city) {
+  // "17 Rue des Coquelicots, 94150 Rungis"
+  const parts = [num, street].filter(Boolean).join(' ');
+  const zone  = [postcode, city].filter(Boolean).join(' ');
+  return [parts, zone].filter(Boolean).join(', ') || null;
+}
+
 async function resolveAddress(elat, elon) {
   try {
     const rev = await fetch(
@@ -388,17 +395,18 @@ async function resolveAddress(elat, elon) {
     const a = d.address || {};
     const city = a.city || a.town || a.village || a.municipality || a.county || '';
     if (a.house_number && a.road)
-      return `${a.house_number} ${a.road}${a.postcode ? ', ' + a.postcode : ''} ${city}`.trim();
-    // Chercher un nœud avec housenumber à proximité
+      return buildAddr(a.house_number, a.road, a.postcode, city);
+    // Chercher un nœud addr:housenumber à proximité
     const q2 = `[out:json][timeout:8];node["addr:housenumber"]["addr:street"](around:200,${elat},${elon});out body 3;`;
     const ov2 = await fetch('https://overpass-api.de/api/interpreter', {
-      method:'POST', body:q2, headers:{'Content-Type':'text/plain','User-Agent':'FeurBoxing/1.0'}
+      method: 'POST', body: q2,
+      headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
     });
     const od2 = await safeJson(ov2);
     const n = od2.elements?.[0]?.tags;
     if (n?.['addr:housenumber'] && n?.['addr:street'])
-      return `${n['addr:housenumber']} ${n['addr:street']}${n['addr:postcode'] ? ', '+n['addr:postcode'] : ''} ${n['addr:city'] || city}`.trim();
-    if (a.road) return `${a.road}${a.postcode ? ', '+a.postcode : ''} ${city}`.trim();
+      return buildAddr(n['addr:housenumber'], n['addr:street'], n['addr:postcode'] || a.postcode, n['addr:city'] || city);
+    if (a.road) return buildAddr(null, a.road, a.postcode, city);
   } catch {}
   return null;
 }
@@ -457,7 +465,7 @@ way["name"]["building"="office"](${ar});
       const t = e.tags || {};
       let addr = null;
       if (t['addr:housenumber'] && t['addr:street']) {
-        addr = `${t['addr:housenumber']} ${t['addr:street']}${t['addr:postcode'] ? ', ' + t['addr:postcode'] : ''} ${t['addr:city'] || ''}`.trim();
+        addr = buildAddr(t['addr:housenumber'], t['addr:street'], t['addr:postcode'], t['addr:city']);
       }
       if (!addr) {
         const elat = e.lat ?? e.center?.lat;
