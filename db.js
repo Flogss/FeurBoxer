@@ -1,4 +1,5 @@
-const fs = require('fs');
+require('dotenv').config();
+const fs   = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
@@ -70,95 +71,107 @@ const DEFAULT_DB = {
   orders: [],
   members: [],
   settings: {
-    adminUid: '5220151803',
-    botToken: '8835439612:AAGio5SpIsS7w1NyN30b96RCn8OPgQLJO0o',
+    adminUid:    process.env.ADMIN_UID      || '',
+    botToken:    process.env.BOT_TOKEN      || '',
     botUsername: '',
-    webappUrl: 'http://localhost:3000',
-    adminPwd: 'admin2024',
-    adminToken: uuidv4(),
-    sol: '6d8ALvAh8DGc6YAZazhGJVbXkAPUMkjsnUfk9wLxLHqt',
-    btc: 'bc1qz896m9frer76kcdcj90g5ealqq4uef0cmhww00',
-    ltc: 'LRuqVPrzy9wJYS9b4LM5UtE3yunMndSo3s',
-    viro: 'Venez mp @FeurMan1 telegram'
+    webappUrl:   process.env.WEBAPP_URL     || 'http://localhost:3000',
+    adminPwd:    process.env.ADMIN_PASSWORD || 'admin2024',
+    adminToken:  uuidv4(),
+    sol:         process.env.SOL            || '',
+    btc:         process.env.BTC            || '',
+    ltc:         process.env.LTC            || '',
+    viro:        process.env.VIRO           || '',
   }
 };
+
+// ── In-memory DB (single source of truth) ──
+let _db = null;
 
 function ensureDir() {
   const dir = path.join(__dirname, 'data');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-function read() {
+function getDb() {
+  if (_db) return _db;
   ensureDir();
   if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(DEFAULT_DB, null, 2));
-    return JSON.parse(JSON.stringify(DEFAULT_DB));
+    _db = JSON.parse(JSON.stringify(DEFAULT_DB));
+    persistDb();
+    return _db;
   }
-  const d = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-  if (!d.members) d.members = [];
-  return d;
+  try {
+    _db = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  } catch (e) {
+    console.error('DB read error, using defaults:', e.message);
+    _db = JSON.parse(JSON.stringify(DEFAULT_DB));
+  }
+  if (!_db.members) _db.members = [];
+  return _db;
 }
 
-function write(data) {
-  ensureDir();
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+function persistDb() {
+  try {
+    ensureDir();
+    fs.writeFileSync(DB_PATH, JSON.stringify(_db, null, 2));
+  } catch (e) {
+    console.error('DB write error:', e.message);
+  }
 }
 
 module.exports = {
   // Categories
-  getCategories: () => read().categories,
-  addCategory: (cat) => { const d = read(); d.categories.push(cat); write(d); },
-  updateCategory: (cat) => { const d = read(); d.categories = d.categories.map(c => c.id === cat.id ? cat : c); write(d); },
-  deleteCategory: (id) => { const d = read(); d.categories = d.categories.filter(c => c.id !== id); write(d); },
+  getCategories: () => getDb().categories,
+  addCategory:   (cat) => { getDb().categories.push(cat); persistDb(); },
+  updateCategory: (cat) => { const d = getDb(); d.categories = d.categories.map(c => c.id === cat.id ? cat : c); persistDb(); },
+  deleteCategory: (id)  => { const d = getDb(); d.categories = d.categories.filter(c => c.id !== id); persistDb(); },
 
   // Products
-  getProducts: () => read().products,
-  addProduct: (p) => { const d = read(); d.products.push(p); write(d); },
-  updateProduct: (p) => { const d = read(); d.products = d.products.map(x => x.id === p.id ? p : x); write(d); },
-  deleteProduct: (id) => { const d = read(); d.products = d.products.filter(p => p.id !== id); write(d); },
+  getProducts:   () => getDb().products,
+  addProduct:    (p)  => { getDb().products.push(p); persistDb(); },
+  updateProduct: (p)  => { const d = getDb(); d.products = d.products.map(x => x.id === p.id ? p : x); persistDb(); },
+  deleteProduct: (id) => { const d = getDb(); d.products = d.products.filter(p => p.id !== id); persistDb(); },
 
   // Orders
-  getOrders: () => read().orders,
-  getOrderById: (id) => read().orders.find(o => o.id === id),
-  addOrder: (order) => { const d = read(); d.orders.unshift(order); write(d); },
-  updateOrder: (order) => { const d = read(); d.orders = d.orders.map(o => o.id === order.id ? order : o); write(d); },
-  addRating: (orderId, rating) => {
-    const d = read();
+  getOrders:    () => getDb().orders,
+  getOrderById: (id) => getDb().orders.find(o => o.id === id),
+  addOrder:     (order) => { getDb().orders.unshift(order); persistDb(); },
+  updateOrder:  (order) => { const d = getDb(); d.orders = d.orders.map(o => o.id === order.id ? order : o); persistDb(); },
+  addRating:    (orderId, rating) => {
+    const d = getDb();
     const o = d.orders.find(x => x.id === orderId);
-    if (o) { o.rating = rating; write(d); }
+    if (o) { o.rating = rating; persistDb(); }
   },
 
   // Members
-  getMembers: () => read().members,
-  getMemberById: (id) => read().members.find(m => String(m.id) === String(id)),
+  getMembers:   () => getDb().members,
+  getMemberById: (id) => getDb().members.find(m => String(m.id) === String(id)),
   upsertMember: (member) => {
-    const d = read();
-    if (!d.members) d.members = [];
+    const d = getDb();
     const idx = d.members.findIndex(m => String(m.id) === String(member.id));
     if (idx >= 0) {
       d.members[idx] = { ...d.members[idx], ...member, lastSeen: new Date().toISOString() };
     } else {
       d.members.push({ ...member, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() });
     }
-    write(d);
+    persistDb();
   },
   getMemberPoints: (userId) => {
-    const d = read();
-    const orders = d.orders;
-    const total = orders
-      .filter(o => String(o.userId) === String(userId) && o.status === 'confirmed')
+    const d = getDb();
+    const total = d.orders
+      .filter(o => String(o.userId) === String(userId) && o.status === 'delivered')
       .reduce((s, o) => s + (o.price || 0), 0);
     const base = Math.floor(total / 5);
     const member = d.members.find(m => String(m.id) === String(userId));
     return base + (member?.bonusPoints || 0);
   },
   adjustMemberPoints: (userId, amount) => {
-    const d = read();
+    const d = getDb();
     const m = d.members.find(x => String(x.id) === String(userId));
-    if (m) { m.bonusPoints = (m.bonusPoints || 0) + amount; write(d); }
+    if (m) { m.bonusPoints = (m.bonusPoints || 0) + amount; persistDb(); }
   },
 
   // Settings
-  getSettings: () => read().settings,
-  updateSettings: (s) => { const d = read(); d.settings = { ...d.settings, ...s }; write(d); }
+  getSettings:    () => getDb().settings,
+  updateSettings: (s) => { const d = getDb(); d.settings = { ...d.settings, ...s }; persistDb(); }
 };

@@ -834,6 +834,11 @@ const LS = {
   del:(k)=>localStorage.removeItem('fb_'+k)
 };
 
+function escHTML(s){
+  if(s==null)return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
 async function apiFetch(method, path, data, opts={}) {
   const headers={};
   if(opts.admin) headers['x-admin']=STATE.adminToken;
@@ -1202,15 +1207,15 @@ async function renderOrders(){
     const progress={pending:10,payment_confirmed:55,delivered:100,refused:0};
     document.getElementById('orders-list').innerHTML=myOrders.map(o=>{
       const canRate=o.status==='delivered'&&!o.rating;
-      const rateBtn='';
-      const ratingDisplay='';
+      const rateBtn=canRate?`<button class="btn-glow btn-outline" style="margin-top:10px;width:100%;padding:8px;font-size:.75rem" onclick="openRatingModal('${escHTML(o.id)}')">⭐ NOTER</button>`:'';
+      const ratingDisplay=o.rating?`<div class="rate-box"><div class="rate-title">Votre note</div><div>${'⭐'.repeat(o.rating)}</div></div>`:'';
       return `
       <div class="order-card">
         <div class="order-header">
-          <div><div class="order-id">${o.id}</div><div class="order-product">${o.productName}</div><div class="order-cat">${o.catName||''}</div></div>
-          <span class="order-status status-${o.status}">${statusLabels[o.status]||o.status}</span>
+          <div><div class="order-id">${escHTML(o.id)}</div><div class="order-product">${escHTML(o.productName)}</div><div class="order-cat">${escHTML(o.catName||'')}</div></div>
+          <span class="order-status status-${escHTML(o.status)}">${escHTML(statusLabels[o.status]||o.status)}</span>
         </div>
-        <div class="order-price">€${o.price} — ${(o.payMethod||'').toUpperCase()}</div>
+        <div class="order-price">€${escHTML(String(o.price))} — ${escHTML((o.payMethod||'').toUpperCase())}</div>
         <div class="order-date">📅 ${new Date(o.date).toLocaleString('fr-FR')}</div>
         ${ratingDisplay}
         <div class="order-progress"><div class="order-progress-bar" style="width:${progress[o.status]||0}%"></div></div>
@@ -1221,9 +1226,10 @@ async function renderOrders(){
 }
 
 // ── RATING ──
-function openRatingModal(orderId,productName){
+function openRatingModal(orderId){
+  const o=orders.find(x=>x.id===orderId);if(!o)return;
   STATE.currentRatingOrderId=orderId;STATE.selectedRating=0;
-  document.getElementById('rating-order-name').textContent=productName;
+  document.getElementById('rating-order-name').textContent=o.productName;
   document.querySelectorAll('.star').forEach(s=>s.classList.remove('active'));
   openModal('modal-rating');
 }
@@ -1291,12 +1297,12 @@ async function loadAdminOrders(){
     const labels={pending:'En attente',payment_confirmed:'Paiement confirmé',delivered:'Colis drop ✅',refused:'Refusé ❌'};
     document.getElementById('adm-orders-table').innerHTML=orders.map(o=>`
       <tr>
-        <td class="td-id">${o.id}</td>
-        <td>${o.userName}${o.username?' (@'+o.username+')':''}</td>
-        <td>${o.productName}</td>
-        <td style="color:var(--ng)">€${o.price}</td>
-        <td><span class="order-status status-${o.status}" style="font-size:.65rem">${labels[o.status]||o.status}</span></td>
-        <td><button class="action-btn" onclick="openOrderDetail('${o.id}')">👁 VOIR</button></td>
+        <td class="td-id">${escHTML(o.id)}</td>
+        <td>${escHTML(o.userName)}${o.username?' (@'+escHTML(o.username)+')':''}</td>
+        <td>${escHTML(o.productName)}</td>
+        <td style="color:var(--ng)">€${escHTML(String(o.price))}</td>
+        <td><span class="order-status status-${escHTML(o.status)}" style="font-size:.65rem">${escHTML(labels[o.status]||o.status)}</span></td>
+        <td><button class="action-btn" onclick="openOrderDetail('${escHTML(o.id)}')">👁 VOIR</button></td>
       </tr>`).join()||'<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:20px">Aucune commande</td></tr>';
   }catch(e){}
 }
@@ -1309,17 +1315,17 @@ function openOrderDetail(orderId){
   document.getElementById('odet-status').value=o.status;
   document.getElementById('odet-info').innerHTML=`
     <div style="font-size:.88rem;line-height:1.9">
-      ${o.photo?`<div style="margin-bottom:10px"><img src="${o.photo}" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--nv)"></div>`:''}
-      <div>👤 <strong>${o.userName}</strong>${o.username?' (@'+o.username+')':''}</div>
-      <div>🆔 <span style="font-family:'Share Tech Mono',monospace;font-size:.78rem">${o.userId}</span></div>
-      <div>💰 €${o.price} — ${(o.payMethod||'').toUpperCase()}${o.customWeight&&o.weight?` <span style="color:var(--no);font-size:.8rem">⚖️ ${o.weight} kg (+5€)</span>`:''}</div>
-      <div>📋 Numéro de suivi : ${o.text||'<em style="color:var(--dim)">(fichier joint — visible à confirmation)</em>'}</div>
+      ${o.photo?`<div style="margin-bottom:10px"><img src="${escHTML(o.photo)}" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--nv)"></div>`:''}
+      <div>👤 <strong>${escHTML(o.userName)}</strong>${o.username?' (@'+escHTML(o.username)+')':''}</div>
+      <div>🆔 <span style="font-family:'Share Tech Mono',monospace;font-size:.78rem">${escHTML(String(o.userId))}</span></div>
+      <div>💰 €${escHTML(String(o.price))} — ${escHTML((o.payMethod||'').toUpperCase())}${o.customWeight&&o.weight?` <span style="color:var(--no);font-size:.8rem">⚖️ ${escHTML(String(o.weight))} kg (+5€)</span>`:''}</div>
+      <div>📋 Numéro de suivi : ${o.text?escHTML(o.text):'<em style="color:var(--dim)">(fichier joint — visible à confirmation)</em>'}</div>
       <div>📅 ${new Date(o.date).toLocaleString('fr-FR')}</div>
       ${o.rating?`<div>⭐ Note : ${'⭐'.repeat(o.rating)}</div>`:''}
     </div>`;
   const files=[];
-  if(o.proofFile)files.push(`<div style="margin-bottom:8px"><a href="/uploads/${o.proofFile}" target="_blank" style="color:var(--nb);font-size:.85rem">📸 Voir le bordereau d'envoi →</a></div>`);
-  if(o.orderFile)files.push(`<div><a href="/uploads/${o.orderFile}" target="_blank" style="color:var(--nv);font-size:.85rem">📎 Voir le document client →</a></div>`);
+  if(o.proofFile)files.push(`<div style="margin-bottom:8px"><a href="/uploads/${escHTML(o.proofFile)}" target="_blank" style="color:var(--nb);font-size:.85rem">📸 Voir le bordereau d'envoi →</a></div>`);
+  if(o.orderFile)files.push(`<div><a href="/uploads/${escHTML(o.orderFile)}" target="_blank" style="color:var(--nv);font-size:.85rem">📎 Voir le document client →</a></div>`);
   document.getElementById('odet-files').innerHTML=files.join('');
   openModal('modal-order-detail');
 }
@@ -1522,10 +1528,10 @@ async function loadAdminMembers(){
   try{
     const members=await apiFetch('GET','/members',null,{admin:true});
     document.getElementById('adm-members-table').innerHTML=members.length?members.map(m=>{
-      const photo=m.photo?`<img class="member-avatar" src="${m.photo}" alt="">`:`<div class="member-avatar-init">${m.name.charAt(0)}</div>`;
+      const photo=m.photo?`<img class="member-avatar" src="${escHTML(m.photo)}" alt="">`:`<div class="member-avatar-init">${escHTML(m.name.charAt(0))}</div>`;
       return `<tr>
-        <td style="display:flex;align-items:center;gap:8px">${photo}<strong>${m.name}</strong></td>
-        <td>${m.username?'@'+m.username:'-'}</td>
+        <td style="display:flex;align-items:center;gap:8px">${photo}<strong>${escHTML(m.name)}</strong></td>
+        <td>${m.username?'@'+escHTML(m.username):'-'}</td>
         <td>${m.ordersCount||0}</td>
         <td style="color:var(--ng)">€${m.totalSpent||0}</td>
         <td style="color:var(--no)">
@@ -1555,7 +1561,7 @@ async function loadAdminMessages(){
     const members=await apiFetch('GET','/members',null,{admin:true});
     const sel=document.getElementById('msg-target');
     sel.innerHTML='<option value="all">📢 Tous les membres ('+members.length+')</option>'+
-      members.map(m=>`<option value="${m.id}">${m.name}${m.username?' (@'+m.username+')':''}</option>`).join('');
+      members.map(m=>`<option value="${escHTML(String(m.id))}">${escHTML(m.name)}${m.username?' (@'+escHTML(m.username)+')':''}</option>`).join('');
   }catch(e){}
 }
 

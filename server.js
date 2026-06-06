@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -6,16 +7,13 @@ const { execFile, execFileSync } = require('child_process');
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./db');
 
-// Détecte le bon exécutable Python (venv Railway ou système)
+// Détecte le bon exécutable Python — vérifie l'existence avant d'exécuter
 function getPython() {
-  const candidates = [
-    '/app/.venv/bin/python3',   // Railway venv
-    '/app/.venv/bin/python',
-    'python3',
-    'python',
-  ];
-  for (const cmd of candidates) {
-    try { execFileSync(cmd, ['--version'], { timeout: 3000 }); return cmd; } catch(e) {}
+  for (const cmd of ['/app/.venv/bin/python3', '/app/.venv/bin/python']) {
+    if (fs.existsSync(cmd)) return cmd;
+  }
+  for (const cmd of ['python3', 'python']) {
+    try { execFileSync(cmd, ['--version'], { timeout: 1000 }); return cmd; } catch(e) {}
   }
   return 'python3';
 }
@@ -41,7 +39,6 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── BOT ──
 let bot;
-let botRetryTimer = null;
 
 function startBot() {
   const settings = db.getSettings();
@@ -117,6 +114,7 @@ function startBot() {
 }
 
 async function sendClientFileToAdmin(order) {
+  if (order.fileSent) return;
   const settings = db.getSettings();
   if (!bot || !settings.adminUid) return;
   const header = `📦 *Document client — Commande confirmée*\n🔑 \`${order.id}\`\n👤 ${order.userName}\n📦 ${order.productName}\n`;
@@ -134,6 +132,8 @@ async function sendClientFileToAdmin(order) {
     } else if (order.text) {
       await bot.sendMessage(settings.adminUid, header + `\n📋 Info: ${order.text}`, { parse_mode: 'Markdown' });
     }
+    order.fileSent = true;
+    db.updateOrder(order);
   } catch(e) { console.error('sendClientFile error:', e.message); }
 }
 
@@ -167,6 +167,21 @@ app.get('/api/orders', (req, res) => {
 app.post('/api/orders', upload.fields([{ name: 'proof', maxCount: 1 }, { name: 'orderFile', maxCount: 1 }]), async (req, res) => {
   let data;
   try { data = JSON.parse(req.body.orderData); } catch(e) { return res.status(400).json({ error: 'Données invalides' }); }
+
+  // Validate product and price server-side
+  const product = db.getProducts().find(p => p.id === data.productId);
+  if (!product || !product.active || product.outOfStock) {
+    return res.status(400).json({ error: 'Produit invalide ou indisponible' });
+  }
+  const basePrice = product.discount > 0
+    ? Math.round(product.price * (1 - product.discount / 100))
+    : product.price;
+  const weightExtra = data.customWeight ? 5 : 0;
+  const expectedPrice = basePrice + weightExtra;
+  if (Math.abs(parseFloat(data.price) - expectedPrice) > 0.01) {
+    return res.status(400).json({ error: 'Prix invalide' });
+  }
+  data.price = expectedPrice;
 
   const orderId = 'FB-' + Date.now().toString(36).toUpperCase();
   const order = {
@@ -385,109 +400,79 @@ function buildAddr(num, street, postcode, city) {
   return [parts, zone].filter(Boolean).join(', ') || null;
 }
 
+// Extrait le code postal français (5 chiffres) d'une chaîne
+function extractCP(str) { const m = str.match(/\b(\d{5})\b/); return m ? m[1] : null; }
+
+// Géocodage via api-adresse.data.gouv.fr (gouvernement FR, fiable depuis Railway)
+async function geocodeFR(address) {
+  try {
+    const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address)}&limit=1`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(7000) });
+    if (!resp.ok) return null;
+    const txt = await resp.text();
+    if (txt.trim().startsWith('<')) return null;
+    const data = JSON.parse(txt);
+    const feat = data.features?.[0];
+    if (!feat) return null;
+    return { postcode: feat.properties.postcode, city: feat.properties.city };
+  } catch { return null; }
+}
+
 app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
   const { address } = req.body;
   if (!address) return res.status(400).json({ error: 'Adresse requise' });
 
   try {
-    // ── 1. Géocodage (avec détails d'adresse) ────────────────────────────
-    const geoResp = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`,
-      { headers: NOM_UA }
-    );
-    if (!geoResp.ok) return res.status(502).json({ error: 'Nominatim indisponible' });
-    const geoText = await geoResp.text();
-    if (geoText.trim().startsWith('<')) return res.status(502).json({ error: 'Géocodage indisponible' });
-    const geoData = JSON.parse(geoText);
-    if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — vérifiez l\'orthographe' });
+    // 1. Extraire le code postal — depuis l'adresse saisie ou via api-adresse.gouv.fr
+    let cp   = extractCP(address);
+    let city = '';
 
-    const geo = geoData[0];
-    const { lat, lon, display_name } = geo;
-    const ga = geo.address || {};
-    const country     = (ga.country_code || '').toLowerCase();
-    const defaultCity = ga.city || ga.town || ga.village || ga.municipality || ga.county || '';
-    const defaultCP   = ga.postcode || '';
-
-    let results = [];
-
-    // ── 2a. FRANCE → API officielle SIRENE (registre national, 2 appels max) ──
-    if (country === 'fr' && (defaultCP || defaultCity)) {
-      const q = defaultCP
-        ? `code_postal=${defaultCP}`
-        : `commune=${encodeURIComponent(defaultCity)}`;
-      const apiResp = await fetch(
-        `https://api.annuaire-entreprises.data.gouv.fr/search?${q}&per_page=25&page=1`,
-        { headers: { 'User-Agent': 'FeurBoxing/1.0' } }
-      );
-      if (apiResp.ok) {
-        const apiText = await apiResp.text();
-        if (!apiText.trim().startsWith('<')) {
-          const apiData = JSON.parse(apiText);
-          results = (apiData.results || [])
-            .filter(co => {
-              const s = co.siege || {};
-              // Exclure auto-entrepreneurs et entreprises individuelles
-              const nj = String(co.nature_juridique || '');
-              if (['1000','1100','1200','1300','5499'].includes(nj)) return false;
-              return co.nom_complet && (s.numero_voie || s.adresse_ligne_1);
-            })
-            .map(co => {
-              const s = co.siege || {};
-              const street = [s.type_voie, s.libelle_voie].filter(Boolean).join(' ')
-                          || s.adresse_ligne_1 || '';
-              return {
-                name:    co.nom_complet,
-                address: buildAddr(s.numero_voie || null, street, s.code_postal || defaultCP, s.libelle_commune || defaultCity),
-                type:    co.categorie_juridique_libelle
-                           ? co.categorie_juridique_libelle.replace(/\(.*?\)/g,'').trim()
-                           : 'Société',
-              };
-            })
-            .filter(r => r.address)
-            .slice(0, 20);
-        }
-      }
+    if (!cp) {
+      const geo = await geocodeFR(address);
+      if (geo) { cp = geo.postcode; city = geo.city; }
     }
 
-    // ── 2b. MONDE → Overpass, uniquement éléments avec addr:housenumber ──
-    if (!results.length) {
-      const ar = `around:3000,${lat},${lon}`;
-      const q = `[out:json][timeout:20];(
-node["name"]["addr:housenumber"]["addr:street"](${ar});
-way["name"]["addr:housenumber"]["addr:street"](${ar});
-node["name"]["addr:street"]["office"](${ar});
-node["name"]["addr:street"]["shop"](${ar});
-);out body center 80;`;
-      const ov = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST', body: q,
-        headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
+    if (!cp) {
+      return res.status(404).json({
+        error: 'Code postal introuvable — incluez-le dans l\'adresse (ex: 95820)'
       });
-      const ovText = await ov.text();
-      if (!ovText.trim().startsWith('<')) {
-        const ovd = JSON.parse(ovText);
-        const seen = new Set();
-        results = (ovd.elements || [])
-          .filter(e => {
-            const n = e.tags?.name;
-            if (!n || seen.has(n)) return false;
-            seen.add(n); return true;
-          })
-          .map(e => {
-            const t = e.tags;
-            return {
-              name:    t.name,
-              address: buildAddr(t['addr:housenumber'], t['addr:street'],
-                                 t['addr:postcode'] || defaultCP,
-                                 t['addr:city'] || defaultCity),
-              type:    typeLabel(t.office || t.shop || t.industrial || t.building),
-            };
-          })
-          .filter(r => r.address)
-          .slice(0, 20);
-      }
     }
 
-    res.json({ geocoded: display_name, lat, lon, results });
+    // 2. API SIRENE officielle — registre national des entreprises
+    const sireResp = await fetch(
+      `https://api.annuaire-entreprises.data.gouv.fr/search?code_postal=${cp}&per_page=25&page=1`,
+      { headers: { 'User-Agent': 'FeurBoxing/1.0' }, signal: AbortSignal.timeout(9000) }
+    );
+    if (!sireResp.ok) throw new Error(`SIRENE HTTP ${sireResp.status}`);
+    const sireTxt = await sireResp.text();
+    if (sireTxt.trim().startsWith('<')) throw new Error('SIRENE a retourné du HTML');
+    const sireData = JSON.parse(sireTxt);
+
+    // Nature juridique à exclure (auto-entrepreneurs, EI, EIRL)
+    const EXCLUDE_NJ = new Set(['1000','1100','1200','1300','1400','1500','5499']);
+
+    const results = (sireData.results || [])
+      .filter(co => {
+        const nj = String(co.nature_juridique || '');
+        return !EXCLUDE_NJ.has(nj) && co.nom_complet && co.siege?.numero_voie;
+      })
+      .map(co => {
+        const s = co.siege;
+        const streetName = [s.type_voie, s.libelle_voie].filter(Boolean).join(' ');
+        return {
+          name:    co.nom_complet,
+          address: buildAddr(s.numero_voie, streetName, s.code_postal || cp, s.libelle_commune || city),
+          type:    co.categorie_juridique_libelle
+                     ? co.categorie_juridique_libelle.replace(/\s*\(.*?\)/g, '').trim()
+                     : 'Société',
+        };
+      })
+      .filter(r => r.address)
+      .slice(0, 20);
+
+    const commune = sireData.results?.[0]?.siege?.libelle_commune || city;
+    res.json({ geocoded: `${cp} ${commune}`, results });
+
   } catch(e) {
     console.error('Nearby companies error:', e.message);
     res.status(500).json({ error: 'Erreur : ' + e.message });
@@ -549,10 +534,10 @@ app.listen(PORT, () => {
   console.log(`🗝  MDP par défaut : admin2024\n`);
 });
 
-// Empêche le process de crasher sur erreur non gérée
 process.on('uncaughtException', (err) => {
-  console.error('uncaughtException (ignoré):', err.message);
+  console.error('uncaughtException:', err.stack || err.message);
+  if (!['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND'].includes(err.code)) process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('unhandledRejection (ignoré):', reason?.message || reason);
+  console.error('unhandledRejection:', reason?.stack || reason?.message || reason);
 });
