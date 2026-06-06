@@ -385,106 +385,112 @@ function buildAddr(num, street, postcode, city) {
   return [parts, zone].filter(Boolean).join(', ') || null;
 }
 
-async function resolveAddress(elat, elon) {
-  try {
-    const rev = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${elat}&lon=${elon}&format=json&zoom=18`,
-      { headers: NOM_UA }
-    );
-    const d = await safeJson(rev);
-    const a = d.address || {};
-    const city = a.city || a.town || a.village || a.municipality || a.county || '';
-    if (a.house_number && a.road)
-      return buildAddr(a.house_number, a.road, a.postcode, city);
-    // Chercher un nœud addr:housenumber à proximité
-    const q2 = `[out:json][timeout:8];node["addr:housenumber"]["addr:street"](around:200,${elat},${elon});out body 3;`;
-    const ov2 = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST', body: q2,
-      headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
-    });
-    const od2 = await safeJson(ov2);
-    const n = od2.elements?.[0]?.tags;
-    if (n?.['addr:housenumber'] && n?.['addr:street'])
-      return buildAddr(n['addr:housenumber'], n['addr:street'], n['addr:postcode'] || a.postcode, n['addr:city'] || city);
-    if (a.road) return buildAddr(null, a.road, a.postcode, city);
-  } catch {}
-  return null;
-}
-
 app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
   const { address } = req.body;
   if (!address) return res.status(400).json({ error: 'Adresse requise' });
 
   try {
-    // 1. Géocodage mondial
+    // ── 1. Géocodage (avec détails d'adresse) ────────────────────────────
     const geoResp = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`,
       { headers: NOM_UA }
     );
     if (!geoResp.ok) return res.status(502).json({ error: 'Nominatim indisponible' });
-    const geoData = await safeJson(geoResp);
-    if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — soyez plus précis' });
-    const { lat, lon, display_name } = geoData[0];
+    const geoText = await geoResp.text();
+    if (geoText.trim().startsWith('<')) return res.status(502).json({ error: 'Géocodage indisponible' });
+    const geoData = JSON.parse(geoText);
+    if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — vérifiez l\'orthographe' });
 
-    // 2. Overpass — requête large sans filtre de type, rayon progressif
-    let rawElements = [];
-    for (const radius of [500, 1000, 2000, 3500]) {
-      const ar = `around:${radius},${lat},${lon}`;
-      const q = `[out:json][timeout:25];(
-node["name"]["office"](${ar});
-node["name"]["company"](${ar});
-node["name"]["industrial"](${ar});
-way["name"]["office"](${ar});
-way["name"]["company"](${ar});
-way["name"]["landuse"="industrial"](${ar});
-way["name"]["building"="warehouse"](${ar});
-way["name"]["building"="industrial"](${ar});
-way["name"]["building"="commercial"](${ar});
-way["name"]["building"="office"](${ar});
-);out body center 150;`;
+    const geo = geoData[0];
+    const { lat, lon, display_name } = geo;
+    const ga = geo.address || {};
+    const country     = (ga.country_code || '').toLowerCase();
+    const defaultCity = ga.city || ga.town || ga.village || ga.municipality || ga.county || '';
+    const defaultCP   = ga.postcode || '';
 
+    let results = [];
+
+    // ── 2a. FRANCE → API officielle SIRENE (registre national, 2 appels max) ──
+    if (country === 'fr' && (defaultCP || defaultCity)) {
+      const q = defaultCP
+        ? `code_postal=${defaultCP}`
+        : `commune=${encodeURIComponent(defaultCity)}`;
+      const apiResp = await fetch(
+        `https://api.annuaire-entreprises.data.gouv.fr/search?${q}&per_page=25&page=1`,
+        { headers: { 'User-Agent': 'FeurBoxing/1.0' } }
+      );
+      if (apiResp.ok) {
+        const apiText = await apiResp.text();
+        if (!apiText.trim().startsWith('<')) {
+          const apiData = JSON.parse(apiText);
+          results = (apiData.results || [])
+            .filter(co => {
+              const s = co.siege || {};
+              // Exclure auto-entrepreneurs et entreprises individuelles
+              const nj = String(co.nature_juridique || '');
+              if (['1000','1100','1200','1300','5499'].includes(nj)) return false;
+              return co.nom_complet && (s.numero_voie || s.adresse_ligne_1);
+            })
+            .map(co => {
+              const s = co.siege || {};
+              const street = [s.type_voie, s.libelle_voie].filter(Boolean).join(' ')
+                          || s.adresse_ligne_1 || '';
+              return {
+                name:    co.nom_complet,
+                address: buildAddr(s.numero_voie || null, street, s.code_postal || defaultCP, s.libelle_commune || defaultCity),
+                type:    co.categorie_juridique_libelle
+                           ? co.categorie_juridique_libelle.replace(/\(.*?\)/g,'').trim()
+                           : 'Société',
+              };
+            })
+            .filter(r => r.address)
+            .slice(0, 20);
+        }
+      }
+    }
+
+    // ── 2b. MONDE → Overpass, uniquement éléments avec addr:housenumber ──
+    if (!results.length) {
+      const ar = `around:3000,${lat},${lon}`;
+      const q = `[out:json][timeout:20];(
+node["name"]["addr:housenumber"]["addr:street"](${ar});
+way["name"]["addr:housenumber"]["addr:street"](${ar});
+node["name"]["addr:street"]["office"](${ar});
+node["name"]["addr:street"]["shop"](${ar});
+);out body center 80;`;
       const ov = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST', body: q,
         headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
       });
-      if (!ov.ok) { console.error('Overpass HTTP', ov.status); continue; }
-      const ovd = await safeJson(ov);
-      const seen = new Set();
-      rawElements = (ovd.elements || []).filter(e => {
-        const n = e.tags?.name;
-        if (!n || seen.has(n)) return false;
-        seen.add(n); return true;
-      });
-      if (rawElements.length >= 15) break; // assez pour paginer
-    }
-
-    // 3. Résoudre les adresses (jusqu'à 15 résultats pour pagination côté client)
-    const results = [];
-    for (const e of rawElements) {
-      if (results.length >= 15) break;
-      const t = e.tags || {};
-      let addr = null;
-      if (t['addr:housenumber'] && t['addr:street']) {
-        addr = buildAddr(t['addr:housenumber'], t['addr:street'], t['addr:postcode'], t['addr:city']);
+      const ovText = await ov.text();
+      if (!ovText.trim().startsWith('<')) {
+        const ovd = JSON.parse(ovText);
+        const seen = new Set();
+        results = (ovd.elements || [])
+          .filter(e => {
+            const n = e.tags?.name;
+            if (!n || seen.has(n)) return false;
+            seen.add(n); return true;
+          })
+          .map(e => {
+            const t = e.tags;
+            return {
+              name:    t.name,
+              address: buildAddr(t['addr:housenumber'], t['addr:street'],
+                                 t['addr:postcode'] || defaultCP,
+                                 t['addr:city'] || defaultCity),
+              type:    typeLabel(t.office || t.shop || t.industrial || t.building),
+            };
+          })
+          .filter(r => r.address)
+          .slice(0, 20);
       }
-      if (!addr) {
-        const elat = e.lat ?? e.center?.lat;
-        const elon = e.lon ?? e.center?.lon;
-        if (elat && elon) addr = await resolveAddress(elat, elon);
-      }
-      if (!addr) continue;
-      results.push({
-        name:    t.name,
-        address: addr,
-        phone:   t.phone || t['contact:phone'] || t['contact:mobile'] || null,
-        type:    typeLabel(t.office || t.company || t.industrial || t.building || t.amenity),
-      });
     }
 
     res.json({ geocoded: display_name, lat, lon, results });
   } catch(e) {
     console.error('Nearby companies error:', e.message);
-    res.status(500).json({ error: 'Erreur serveur : ' + e.message });
+    res.status(500).json({ error: 'Erreur : ' + e.message });
   }
 });
 
