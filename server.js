@@ -356,14 +356,51 @@ app.get('/api/stats', adminAuth, (req, res) => {
 // ── NEARBY COMPANIES ──
 const NOM_HEADERS = { 'User-Agent': 'FeurBoxing/1.0', 'Accept-Language': 'fr' };
 
-async function reverseGeocode(lat, lon) {
+// Traduction des types OSM → français
+const TYPE_FR = {
+  estate_agent:'Agence immobilière', accountant:'Cabinet comptable', lawyer:"Cabinet d'avocat",
+  notary:'Notaire', financial:'Finance', insurance:'Assurance', bank:'Banque',
+  company:'Société', office:'Bureau', government:'Administration', ngo:'Association',
+  it:'Informatique', architect:"Cabinet d'architecture", engineering:'Bureau d\'études',
+  construction:'Construction', logistics:'Logistique', research:'Recherche',
+  educational:'Éducation', healthcare:'Santé', administrative:'Administration',
+  yes:'Société', industrial:'Zone industrielle', warehouse:'Entrepôt',
+  commercial:'Commerce', retail:'Commerce', storage_tank:'Stockage',
+};
+function typeLabel(raw) {
+  return TYPE_FR[raw?.toLowerCase()] || (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Société');
+}
+
+// Adresse complète avec numéro — essaie :
+// 1. Reverse geocode Nominatim zoom=18 (bâtiment)
+// 2. Si pas de numéro → cherche nœud addr:housenumber Overpass dans 150m
+async function resolveAddress(lat, lon) {
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, { headers: NOM_HEADERS });
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=18`,
+      { headers: NOM_HEADERS }
+    );
     const d = await r.json();
     const a = d.address || {};
-    return [a.house_number, a.road, a.postcode, a.city || a.town || a.village || a.municipality]
-      .filter(Boolean).join(' ') || null;
-  } catch { return null; }
+    const city = a.city || a.town || a.village || a.municipality || a.county || '';
+    if (a.house_number && a.road) {
+      return `${a.house_number} ${a.road}${a.postcode ? ', ' + a.postcode : ''} ${city}`.trim();
+    }
+    // Pas de numéro → chercher un nœud adresse Overpass à proximité
+    const q = `[out:json][timeout:8];node["addr:housenumber"]["addr:street"](around:150,${lat},${lon});out body 3;`;
+    const ov = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST', body: q,
+      headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
+    });
+    const ovd = await ov.json();
+    const n = ovd.elements?.[0]?.tags;
+    if (n?.['addr:housenumber'] && n?.['addr:street']) {
+      return `${n['addr:housenumber']} ${n['addr:street']}${n['addr:postcode'] ? ', ' + n['addr:postcode'] : ''} ${n['addr:city'] || city}`.trim();
+    }
+    // Fallback sans numéro
+    if (a.road) return `${a.road}${a.postcode ? ', ' + a.postcode : ''} ${city}`.trim();
+  } catch {}
+  return null;
 }
 
 app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
@@ -380,8 +417,8 @@ app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
     if (!geoData.length) return res.status(404).json({ error: 'Adresse introuvable — soyez plus précis' });
     const { lat, lon, display_name } = geoData[0];
 
-    // 2. Overpass — priorité : offices, industrial, company (pas shops)
-    //    Rayon progressif 500 → 1000 → 2000m jusqu'à avoir ≥ 3 candidats
+    // 2. Overpass — offices, industrial, company (pas de commerces de détail)
+    //    Rayon progressif jusqu'à avoir ≥ 6 candidats (marge pour les sans-adresse)
     let candidates = [];
     for (const r of [500, 1000, 2000, 3000]) {
       const q = `[out:json][timeout:25];(
@@ -393,7 +430,7 @@ app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
         way["name"]["landuse"~"^(industrial|commercial)$"](around:${r},${lat},${lon});
         way["name"]["building"~"^(commercial|industrial|warehouse|office|retail|storage_tank)$"](around:${r},${lat},${lon});
         relation["name"]["office"](around:${r},${lat},${lon});
-      );out body center 60;`;
+      );out body center 80;`;
       const ov = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST', body: q,
         headers: { 'Content-Type': 'text/plain', 'User-Agent': 'FeurBoxing/1.0' }
@@ -405,33 +442,36 @@ app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
         if (!n || seen.has(n)) return false;
         seen.add(n); return true;
       });
-      if (candidates.length >= 3) break;
+      if (candidates.length >= 6) break;
     }
 
-    // 3. Construire les 3 résultats — reverse geocode si adresse manquante
+    // 3. Construire les 3 résultats avec adresse numérotée obligatoire
     const results = [];
     for (const e of candidates) {
       if (results.length >= 3) break;
       const t = e.tags || {};
 
-      // Adresse depuis les tags OSM
-      const osmAddr = [t['addr:housenumber'], t['addr:street'], t['addr:postcode'], t['addr:city']]
-        .filter(Boolean).join(' ');
+      // Essayer adresse depuis les tags OSM d'abord
+      let addr = null;
+      if (t['addr:housenumber'] && t['addr:street']) {
+        const city = t['addr:city'] || '';
+        addr = `${t['addr:housenumber']} ${t['addr:street']}${t['addr:postcode'] ? ', ' + t['addr:postcode'] : ''} ${city}`.trim();
+      }
 
-      // Si adresse incomplète → reverse geocode avec le centroïde de l'élément
-      let addr = osmAddr.length > 5 ? osmAddr : null;
+      // Sinon, résolution complète (reverse geocode + Overpass addr node)
       if (!addr) {
         const elat = e.lat ?? e.center?.lat;
         const elon = e.lon ?? e.center?.lon;
-        if (elat && elon) addr = await reverseGeocode(elat, elon);
+        if (elat && elon) addr = await resolveAddress(elat, elon);
       }
-      if (!addr) continue; // toujours pas d'adresse → on passe au suivant
+
+      if (!addr) continue; // pas d'adresse du tout → on passe au suivant
 
       results.push({
         name:    t.name,
         address: addr,
         phone:   t.phone || t['contact:phone'] || t['contact:mobile'] || null,
-        type:    t.office || t.company || t.industrial || t.building || 'société',
+        type:    typeLabel(t.office || t.company || t.industrial || t.building),
       });
     }
 
