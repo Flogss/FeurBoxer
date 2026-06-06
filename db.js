@@ -19,32 +19,18 @@ const DEFAULT_DB = {
   ],
   products: [
     // ── COLISSIMO ──
-    { id: 'p-col-i1', catId: 'cat-colissimo', name: 'Lit dépôt',                   desc: 'INSIDER', price: 45, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-col-i2', catId: 'cat-colissimo', name: 'Lit transit',                 desc: 'INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-col-i3', catId: 'cat-colissimo', name: 'FTID',                        desc: 'INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-col-i4', catId: 'cat-colissimo', name: 'RTS simple',                  desc: 'INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-col-i5', catId: 'cat-colissimo', name: 'RTS + (endommagé, livré…)',   desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-col-i6', catId: 'cat-colissimo', name: 'Scan livré',                  desc: 'INSIDER', price: 45, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-col-m1', catId: 'cat-colissimo', name: 'FTID',                        desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-col-m2', catId: 'cat-colissimo', name: 'Lit transit',                 desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-col-m3', catId: 'cat-colissimo', name: 'Reroute',                     desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-col-m4', catId: 'cat-colissimo', name: 'Reroute + livré',             desc: 'MANUEL',  price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-col-m5', catId: 'cat-colissimo', name: 'Fix FTID / scan livré',       desc: 'MANUEL',  price: 30, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     // ── CHRONOPOST ──
-    { id: 'p-chr-i1', catId: 'cat-chronopost', name: 'Lit dépôt',                  desc: 'INSIDER', price: 45, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-chr-i2', catId: 'cat-chronopost', name: 'Lit transit',                desc: 'INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-chr-i3', catId: 'cat-chronopost', name: 'RTS',                        desc: 'INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-chr-i4', catId: 'cat-chronopost', name: 'RTS endommagé',              desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-chr-m1', catId: 'cat-chronopost', name: 'FTID',                       desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-chr-m2', catId: 'cat-chronopost', name: 'Lit transit',                desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-chr-m3', catId: 'cat-chronopost', name: 'Reroute',                    desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-chr-m4', catId: 'cat-chronopost', name: 'Reroute + livré',            desc: 'MANUEL',  price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-chr-m5', catId: 'cat-chronopost', name: 'Fix FTID / scan livré',      desc: 'MANUEL',  price: 30, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     // ── DPD ──
-    { id: 'p-dpd-i1', catId: 'cat-dpd', name: 'Lit dépôt',                         desc: 'INSIDER', price: 45, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-dpd-i2', catId: 'cat-dpd', name: 'Lit transit',                       desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-dpd-i3', catId: 'cat-dpd', name: 'RTS',                               desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-dpd-i4', catId: 'cat-dpd', name: 'RTS + (dmg, avisé, livré)',         desc: 'INSIDER', price: 65, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-dpd-m1', catId: 'cat-dpd', name: 'FTID',                              desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-dpd-m2', catId: 'cat-dpd', name: 'Lit transit',                       desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-dpd-m3', catId: 'cat-dpd', name: 'Reroute',                           desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
@@ -54,10 +40,6 @@ const DEFAULT_DB = {
     { id: 'p-ups-m1', catId: 'cat-ups', name: 'Lit dépôt',                          desc: 'SCAN MANUEL',  price: 30, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-ups-m2', catId: 'cat-ups', name: 'Lit transit',                        desc: 'SCAN MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-ups-m3', catId: 'cat-ups', name: 'FTID',                               desc: 'SCAN MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-ups-i1', catId: 'cat-ups', name: 'Lit dépôt',                          desc: 'SCAN INSIDER', price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-ups-i2', catId: 'cat-ups', name: 'Invest Claim',                       desc: 'SCAN INSIDER', price: 45, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-ups-i3', catId: 'cat-ups', name: 'Scan damage',                        desc: 'SCAN INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-ups-i4', catId: 'cat-ups', name: 'RTS damage',                         desc: 'SCAN INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     // ── MONDIAL RELAY ──
     { id: 'p-mr-m1', catId: 'cat-mondialrelay', name: 'Lit scan',                   desc: 'SCAN MANUEL',  price: 30, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-mr-m2', catId: 'cat-mondialrelay', name: 'Lit transit',                desc: 'SCAN MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
@@ -65,25 +47,16 @@ const DEFAULT_DB = {
     { id: 'p-mr-m4', catId: 'cat-mondialrelay', name: 'FTID QR code',               desc: 'SCAN MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-mr-m5', catId: 'cat-mondialrelay', name: 'RTS',                        desc: 'SCAN MANUEL',  price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-mr-m6', catId: 'cat-mondialrelay', name: 'Reroute',                    desc: 'SCAN MANUEL',  price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-mr-i1', catId: 'cat-mondialrelay', name: 'Lit scan insider',           desc: 'SCAN INSIDER — idéal AMZ', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-mr-i2', catId: 'cat-mondialrelay', name: 'RTS',                        desc: 'SCAN INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     // ── RELAIS COLIS ──
     { id: 'p-rc-m1', catId: 'cat-relaiscolis', name: 'FTID',                        desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-rc-m2', catId: 'cat-relaiscolis', name: 'Lit transit',                 desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-rc-m3', catId: 'cat-relaiscolis', name: 'Lit scan / dépôt',            desc: 'MANUEL',  price: 35, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-rc-m4', catId: 'cat-relaiscolis', name: 'Reroute',                     desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-rc-i1', catId: 'cat-relaiscolis', name: 'Lit scan / dépôt',            desc: 'INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-rc-i2', catId: 'cat-relaiscolis', name: 'Lit transit',                 desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-rc-i3', catId: 'cat-relaiscolis', name: 'RTS',                         desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     // ── DHL ──
-    { id: 'p-dhl-i1', catId: 'cat-dhl', name: 'Lit dépôt',                          desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-dhl-i2', catId: 'cat-dhl', name: 'RTS',                                desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-dhl-m1', catId: 'cat-dhl', name: 'FTID',                               desc: 'MANUEL',  price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-dhl-m2', catId: 'cat-dhl', name: 'Lit transit',                        desc: 'MANUEL',  price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-dhl-m3', catId: 'cat-dhl', name: 'Lit dépôt',                          desc: 'MANUEL',  price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     // ── GLS ──
-    { id: 'p-gls-i1', catId: 'cat-gls', name: 'Lit dépôt',                          desc: 'INSIDER', price: 50, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
-    { id: 'p-gls-i2', catId: 'cat-gls', name: 'RTS',                                desc: 'INSIDER', price: 60, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-gls-m1', catId: 'cat-gls', name: 'FTID',                               desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     { id: 'p-gls-m2', catId: 'cat-gls', name: 'Lit transit',                        desc: 'MANUEL',  price: 40, icon: '📦', inputType: 'text', inputHint: 'Entrez votre numéro de suivi', active: true, outOfStock: false, discount: 0, customWeight: true },
     // ── BPOST ──
@@ -103,10 +76,10 @@ const DEFAULT_DB = {
     webappUrl: 'http://localhost:3000',
     adminPwd: 'admin2024',
     adminToken: uuidv4(),
-    sol: 'GfkQLH7mVQr3ZWdmBZFqNKJhEu5HpDxFYv3AXP9nWSQC',
-    btc: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
-    ltc: 'LaBFN7mGdLXhB9Vwx8FtEGBs5NJPqa2DdK',
-    viro: 'PayPal : paypal.me/feurboxing\n\nVirement IBAN : FR76 3000 4000 0300 0001 0000 000\nBIC : BNPAFRPPXXX\nRéférence : votre ID de commande'
+    sol: '6d8ALvAh8DGc6YAZazhGJVbXkAPUMkjsnUfk9wLxLHqt',
+    btc: 'bc1qz896m9frer76kcdcj90g5ealqq4uef0cmhww00',
+    ltc: 'LRuqVPrzy9wJYS9b4LM5UtE3yunMndSo3s',
+    viro: 'Venez mp @FeurMan1 telegram'
   }
 };
 
