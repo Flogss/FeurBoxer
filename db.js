@@ -147,5 +147,13 @@ module.exports = {
 
   // Settings
   getSettings:    () => getDb().settings,
-  updateSettings: (s) => { const d = getDb(); d.settings = { ...d.settings, ...s }; persistDb(); }
+  updateSettings: (s) => { const d = getDb(); d.settings = { ...d.settings, ...s }; persistDb(); },
+
+  // Force-sync products to DEFAULT_DB catalog (called on server startup)
+  syncProducts: () => {
+    const d = getDb();
+    d.products = JSON.parse(JSON.stringify(DEFAULT_DB.products));
+    persistDb();
+    console.log('📦 Catalogue produits synchronisé (' + d.products.length + ' produits)');
+  }
 };

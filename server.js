@@ -20,6 +20,9 @@ function getPython() {
 const PYTHON = getPython();
 console.log('🐍 Python:', PYTHON);
 
+// Force le catalogue produits au démarrage (écrase les anciens produits dans db.json)
+db.syncProducts();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
