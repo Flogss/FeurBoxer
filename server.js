@@ -540,6 +540,29 @@ app.post('/api/bordereau/process', adminAuth, async (req, res) => {
   });
 });
 
+// ── BORDEREAU : ANALYSE D'UN PDF UPLOADÉ (extraction des infos) ──
+app.post('/api/bordereau/extract', adminAuth, upload.single('pdf'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'PDF requis' });
+  const pdfPath = req.file.path;
+  const script  = path.join(__dirname, 'bordereau', 'extract_bordereau.py');
+  const cleanup = () => { try { fs.unlinkSync(pdfPath); } catch (e) {} };
+
+  execFile(PYTHON, [script, pdfPath], { maxBuffer: 5 * 1024 * 1024, timeout: 30000 }, (err, stdout, stderr) => {
+    cleanup();
+    if (err) {
+      console.error('Extract error:', { code: err.code, msg: err.message, stderr });
+      return res.status(500).json({ error: 'Analyse échouée : ' + ((stderr || '').trim() || err.message) });
+    }
+    try {
+      const data = JSON.parse(stdout);
+      if (data.error) return res.status(422).json(data);
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: 'Réponse illisible du script' });
+    }
+  });
+});
+
 // ── ADMIN LOGIN ──
 app.post('/api/admin/login', (req, res) => {
   const s = db.getSettings();

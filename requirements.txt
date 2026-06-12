@@ -1,3 +1,4 @@
 pymupdf
 python-barcode
 Pillow
+zxing-cpp
