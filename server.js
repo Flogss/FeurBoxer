@@ -563,6 +563,41 @@ app.post('/api/bordereau/extract', adminAuth, upload.single('pdf'), (req, res) =
   });
 });
 
+// ── BORDEREAU : MODIFICATION D'UN PDF + ENVOI À L'ADMIN ──
+app.post('/api/bordereau/modify', adminAuth, upload.single('pdf'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'PDF requis' });
+  const inPath  = req.file.path;
+  const outPath = path.join(__dirname, 'uploads', `bordereau-mod-${Date.now()}.pdf`);
+  const script  = path.join(__dirname, 'bordereau', 'modify_bordereau.py');
+  const cleanup = () => { try { fs.unlinkSync(inPath); } catch (e) {} };
+
+  let edits;
+  try { edits = JSON.parse(req.body.edits || '{}'); } catch (e) { cleanup(); return res.status(400).json({ error: 'edits invalide' }); }
+  // Validation/limites
+  edits.text = Array.isArray(edits.text) ? edits.text.slice(0, 20).filter(t => t && t.old && t.new) : [];
+  edits.barcodes = Array.isArray(edits.barcodes) ? edits.barcodes.slice(0, 6).filter(b => b && b.old && b.new) : [];
+  edits.page = parseInt(edits.page) || 0;
+
+  execFile(PYTHON, [script, inPath, outPath, JSON.stringify(edits)],
+    { maxBuffer: 5 * 1024 * 1024, timeout: 40000 }, async (err, stdout, stderr) => {
+    cleanup();
+    if (err) {
+      console.error('Modify error:', { code: err.code, msg: err.message, stderr });
+      return res.status(500).json({ error: 'Modification échouée : ' + ((stderr || '').trim() || err.message) });
+    }
+    const settings = db.getSettings();
+    if (bot && settings.adminUid) {
+      const label = req.body.label ? `\n📦 ${req.body.label}` : '';
+      try {
+        await bot.sendDocument(settings.adminUid, outPath, {
+          caption: `✏️ *Bordereau modifié*${label}`, parse_mode: 'Markdown'
+        });
+      } catch (e) { console.error('TG modify error:', e.message); }
+    }
+    res.json({ ok: true });
+  });
+});
+
 // ── ADMIN LOGIN ──
 app.post('/api/admin/login', (req, res) => {
   const s = db.getSettings();

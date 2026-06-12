@@ -1644,6 +1644,7 @@ async function analyzeBordereau(){
   const input=document.getElementById('bord-file');
   const file=input.files&&input.files[0];
   if(!file)return;
+  window._lastBordFile=file;
   document.getElementById('bord-filename').textContent=file.name;
   const status=document.getElementById('bord-status');
   const out=document.getElementById('bord-results');
@@ -1713,11 +1714,110 @@ function bordView(src){
       ${bordParty('📍 DESTINATAIRE',info.recipient,'var(--nb)')}
       ${bordParty('📤 EXPÉDITEUR',info.sender,'var(--nv)')}
     </div>
+    ${bordActions(d,tracking)}
+    <div id="bord-editor"></div>
     ${(info.phones&&info.phones.length)?`<div style="margin-bottom:8px;font-size:.8rem"><span style="color:var(--dim)">📞 </span>${info.phones.map(escHTML).join(', ')}</div>`:''}
     ${(info.emails&&info.emails.length)?`<div style="margin-bottom:8px;font-size:.8rem"><span style="color:var(--dim)">✉️ </span>${info.emails.map(escHTML).join(', ')}</div>`:''}
     ${refs?`<div style="margin-bottom:8px"><span style="font-size:.7rem;color:var(--dim)">Références : </span>${refs}</div>`:''}
     ${bc?`<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.75rem;color:var(--dim)">🏷 Codes-barres (${d.barcodes.length})</summary><div style="margin-top:6px">${bc}</div></details>`:''}
   </div>`;
+}
+
+// URLs de suivi par transporteur (+ universel 17track)
+function trackingUrls(carrier,t){
+  const c=(carrier||'').toLowerCase(), e=encodeURIComponent(t);
+  const map={
+    'colissimo':`https://www.laposte.fr/outils/suivre-vos-envois?code=${e}`,
+    'chronopost':`https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=${e}`,
+    'ups':`https://www.ups.com/track?loc=fr_FR&tracknum=${e}`,
+    'dpd':`https://www.dpd.fr/trace/${e}`,
+    'mondial relay':`https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition=${e}`,
+    'relais colis':`https://www.relaiscolis.com/suivi-de-colis/?id=${e}`,
+    'dhl':`https://www.dhl.com/fr-fr/home/tracking.html?tracking-id=${e}`,
+    'gls':`https://gls-group.com/FR/fr/suivi-colis?match=${e}`,
+    'fedex':`https://www.fedex.com/fedextrack/?trknbr=${e}`,
+    'bpost':`https://track.bpost.cloud/btr/web/#/search?itemCode=${e}`
+  };
+  return {carrier:map[c]||null,universal:`https://www.17track.net/fr/track?nums=${e}`};
+}
+
+function bordActions(d,tracking){
+  let html='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">';
+  if(tracking){
+    const u=trackingUrls(d.carrier,tracking);
+    if(u.carrier) html+=`<a href="${u.carrier}" target="_blank" rel="noopener" style="font-size:.7rem;text-decoration:none;color:var(--nb);background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.3);padding:7px 13px;border-radius:8px;font-family:'Orbitron',sans-serif;font-weight:700">🔎 SUIVRE (${escHTML(d.carrier||'')})</a>`;
+    html+=`<a href="${u.universal}" target="_blank" rel="noopener" style="font-size:.7rem;text-decoration:none;color:var(--ng);background:rgba(57,255,20,0.08);border:1px solid rgba(57,255,20,0.3);padding:7px 13px;border-radius:8px;font-family:'Orbitron',sans-serif;font-weight:700">🌍 TOUS TRANSPORTEURS</a>`;
+  }
+  html+=`<button onclick="openBordEditor()" style="font-size:.7rem;color:var(--np);background:rgba(247,37,133,0.08);border:1px solid rgba(247,37,133,0.3);padding:7px 13px;border-radius:8px;cursor:pointer;font-family:'Orbitron',sans-serif;font-weight:700">✏️ MODIFIER & ENVOYER</button>`;
+  html+='</div>';
+  return html;
+}
+
+function openBordEditor(){
+  const d=window._lastBord; if(!d){return;}
+  if(!window._lastBordFile){showToast('⚠️ Re-sélectionnez le PDF','error');return;}
+  const ed=document.getElementById('bord-editor');
+  if(ed.dataset.open==='1'){ed.innerHTML='';ed.dataset.open='0';return;}
+  ed.dataset.open='1';
+  const t=d.text||{};
+  const field=(lbl,id,val)=>`<div class="form-group" style="margin-bottom:8px"><label class="form-label">${lbl}</label><input id="${id}" class="form-input" value="${escHTML(val||'')}" data-old="${escHTML(val||'')}"></div>`;
+  const bcRows=(d.barcodes||[]).map((b,i)=>`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <span style="font-size:.7rem;color:var(--dim);min-width:70px">${escHTML(b.format)}</span>
+      <input id="bc-new-${i}" class="form-input" style="flex:1;min-width:140px;font-family:'Share Tech Mono',monospace" placeholder="nouveau code (laisser vide = inchangé)">
+    </div>`).join('');
+  ed.innerHTML=`<div style="background:rgba(247,37,133,0.05);border:1px solid rgba(247,37,133,0.2);border-radius:10px;padding:14px;margin-bottom:12px">
+    <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--np);margin-bottom:10px">✏️ MODIFIER LE BORDEREAU</div>
+    <p style="color:var(--dim);font-size:.74rem;margin-bottom:12px">Modifiez les champs (le texte est remplacé sur le PDF) et/ou donnez un nouveau code-barres. Le PDF modifié est envoyé sur Telegram à l'admin.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:.7rem;color:var(--nv);font-family:'Orbitron',sans-serif;margin-bottom:6px">EXPÉDITEUR</div>
+        ${field('Nom','ed-sname',t.sender&&t.sender.name)}
+        ${field('Adresse','ed-saddr',t.sender&&t.sender.address)}
+        ${field('Ville','ed-scity',t.sender&&t.sender.city)}
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:.7rem;color:var(--nb);font-family:'Orbitron',sans-serif;margin-bottom:6px">DESTINATAIRE</div>
+        ${field('Nom','ed-rname',t.recipient&&t.recipient.name)}
+        ${field('Adresse','ed-raddr',t.recipient&&t.recipient.address)}
+        ${field('Ville','ed-rcity',t.recipient&&t.recipient.city)}
+      </div>
+    </div>
+    ${bcRows?`<div style="margin-top:8px"><div style="font-size:.7rem;color:var(--no);font-family:'Orbitron',sans-serif;margin-bottom:6px">CODES-BARRES</div>${bcRows}</div>`:''}
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <button onclick="submitBordEdit()" class="btn-glow btn-primary" style="padding:9px 18px;font-size:.7rem">📤 GÉNÉRER & ENVOYER À L'ADMIN</button>
+      <div id="bord-edit-status" style="font-size:.8rem"></div>
+    </div>
+  </div>`;
+}
+
+async function submitBordEdit(){
+  const d=window._lastBord, file=window._lastBordFile;
+  if(!file){showToast('⚠️ Re-sélectionnez le PDF','error');return;}
+  const status=document.getElementById('bord-edit-status');
+  const textEdits=[];
+  document.querySelectorAll('#bord-editor input[data-old]').forEach(inp=>{
+    const oldV=inp.dataset.old.trim(), newV=inp.value.trim();
+    if(oldV && newV && oldV!==newV) textEdits.push({old:oldV,new:newV});
+  });
+  const bcEdits=[];
+  (d.barcodes||[]).forEach((b,i)=>{
+    const el=document.getElementById('bc-new-'+i);
+    if(el&&el.value.trim()) bcEdits.push({old:b.text,new:el.value.trim(),format:b.format});
+  });
+  if(!textEdits.length && !bcEdits.length){showToast('Rien à modifier','info');return;}
+  status.innerHTML='<span style="color:var(--dim)">⏳ Génération...</span>';
+  try{
+    const fd=new FormData();
+    fd.append('pdf',file);
+    fd.append('edits',JSON.stringify({page:(d.page_used||1)-1,text:textEdits,barcodes:bcEdits}));
+    fd.append('label',d.tracking||'');
+    await apiFetch('POST','/bordereau/modify',fd,{admin:true});
+    status.innerHTML='<span style="color:var(--ng)">✅ Bordereau modifié envoyé sur Telegram !</span>';
+    showToast('✅ Envoyé à l\'admin','success');
+  }catch(e){
+    status.innerHTML=`<span style="color:var(--np)">❌ ${escHTML(e.message)}</span>`;
+  }
 }
 
 async function generateBordereau(){
