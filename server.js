@@ -502,14 +502,23 @@ app.post('/api/test/notify', adminAuth, async (req, res) => {
 
 // ── BORDEREAU ──
 app.post('/api/bordereau/process', adminAuth, async (req, res) => {
-  const { orderId, trackingNumber } = req.body;
+  const { orderId, trackingNumber, sender } = req.body;
   if (!trackingNumber) return res.status(400).json({ error: 'trackingNumber requis' });
 
   const settings = db.getSettings();
   const outFile  = path.join(__dirname, 'uploads', `bordereau-${Date.now()}.pdf`);
   const script   = path.join(__dirname, 'bordereau', 'process_bordereau.py');
 
-  execFile(PYTHON, [script, trackingNumber, outFile], async (err, stdout, stderr) => {
+  // Expéditeur / point relais optionnel — transmis en JSON au script Python
+  const args = [script, trackingNumber, outFile];
+  if (sender && typeof sender === 'object') {
+    const allowed = ['relais', 'enseigne', 'name', 'street', 'city'];
+    const clean = {};
+    allowed.forEach(k => { if (typeof sender[k] === 'string' && sender[k].trim()) clean[k] = sender[k].trim().slice(0, 60); });
+    if (Object.keys(clean).length) args.push(JSON.stringify(clean));
+  }
+
+  execFile(PYTHON, args, async (err, stdout, stderr) => {
     if (err) {
       const detail = (stderr || '').trim() || err.message || 'commande introuvable';
       console.error('Bordereau error:', { code: err.code, msg: err.message, stderr });

@@ -520,6 +520,17 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
               <label class="form-label">NUMÉRO DE SUIVI</label>
               <input id="test-tracking" class="form-input" placeholder="ex: 6A05681027840" style="font-family:'Share Tech Mono',monospace">
             </div>
+            <!-- Expéditeur / point relais (modifiable, valeurs par défaut) -->
+            <button type="button" id="sender-toggle-btn" onclick="toggleSenderEdit()" style="margin-bottom:12px;padding:9px 14px;background:rgba(57,255,20,0.08);border:1px solid rgba(57,255,20,0.3);color:var(--ng);border-radius:8px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.66rem;font-weight:700">✏️ MODIFIER L'EXPÉDITEUR</button>
+            <div id="sender-edit-panel" style="display:none;background:rgba(57,255,20,0.04);border:1px solid rgba(57,255,20,0.18);border-radius:10px;padding:14px;margin-bottom:14px">
+              <p style="color:var(--dim);font-size:.76rem;margin-bottom:12px">Valeurs imprimées sur le bordereau (bloc expéditeur). Laissées par défaut si non modifiées.</p>
+              <div class="form-group"><label class="form-label">POINT RELAIS</label><input id="sender-relais" class="form-input" value="RELAIS PICKUP"></div>
+              <div class="form-group"><label class="form-label">ENSEIGNE</label><input id="sender-enseigne" class="form-input" value="FRANPRIX"></div>
+              <div class="form-group"><label class="form-label">NOM EXPÉDITEUR</label><input id="sender-name" class="form-input" value="ARTHUR HAIAT"></div>
+              <div class="form-group"><label class="form-label">ADRESSE</label><input id="sender-street" class="form-input" value="1 RUE TRAVERSIERE"></div>
+              <div class="form-group"><label class="form-label">CODE POSTAL / VILLE</label><input id="sender-city" class="form-input" value="94150 RUNGIS"></div>
+              <button type="button" onclick="resetSenderDefaults()" style="padding:7px 12px;background:none;border:1px solid var(--border);color:var(--dim);border-radius:7px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:.78rem;font-weight:700">↺ Réinitialiser</button>
+            </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <button class="btn-glow btn-primary" style="padding:10px 22px;font-size:.72rem" onclick="testGenerateBordereau()">📄 GÉNÉRER & ENVOYER SUR TELEGRAM</button>
               <div id="test-bordereau-status" style="font-size:.82rem"></div>
@@ -559,24 +570,6 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
                 <button id="nearby-prev-btn" onclick="stepNearby(-1)" style="flex:1;padding:9px;background:rgba(155,93,229,0.08);border:1px solid rgba(155,93,229,0.3);border-radius:8px;color:var(--nv);cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.68rem;font-weight:700">◀ PRÉCÉDENTES</button>
                 <button id="nearby-next-btn" onclick="stepNearby(1)"  style="flex:1;padding:9px;background:rgba(0,212,255,0.07);border:1px solid rgba(0,212,255,0.25);border-radius:8px;color:var(--nb);cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.68rem;font-weight:700">SUIVANTES ▶</button>
               </div>
-            </div>
-          </div>
-
-          <!-- Simuler commande Telegram -->
-          <div class="glass-card" style="border-color:rgba(155,93,229,0.2)">
-            <h3 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--nv);margin-bottom:14px">📲 SIMULER UNE NOTIFICATION ADMIN</h3>
-            <p style="color:var(--dim);font-size:.82rem;margin-bottom:14px">Envoie un faux message de commande à l'admin Telegram pour tester la mise en forme.</p>
-            <div class="form-group">
-              <label class="form-label">PRODUIT (test)</label>
-              <input id="test-product-name" class="form-input" placeholder="ex: RTS simple — INSIDER" value="RTS simple — INSIDER">
-            </div>
-            <div class="form-group">
-              <label class="form-label">MONTANT (€)</label>
-              <input id="test-amount" class="form-input" type="number" value="50">
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <button style="padding:10px 22px;background:rgba(155,93,229,0.12);border:1px solid var(--nv);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.7rem;font-weight:700" onclick="testSendFakeOrder()">📲 ENVOYER TEST TELEGRAM</button>
-              <div id="test-order-status" style="font-size:.82rem"></div>
             </div>
           </div>
         </div>
@@ -1514,32 +1507,33 @@ async function searchNearbyCompanies(fresh = true) {
   }
 }
 
+// ── Expéditeur / point relais du bordereau ──
+const SENDER_DEFAULTS={relais:'RELAIS PICKUP',enseigne:'FRANPRIX',name:'ARTHUR HAIAT',street:'1 RUE TRAVERSIERE',city:'94150 RUNGIS'};
+function toggleSenderEdit(){
+  const p=document.getElementById('sender-edit-panel');
+  const open=p.style.display!=='none';
+  p.style.display=open?'none':'block';
+  document.getElementById('sender-toggle-btn').textContent=open?"✏️ MODIFIER L'EXPÉDITEUR":"✖ MASQUER L'EXPÉDITEUR";
+}
+function resetSenderDefaults(){
+  for(const k in SENDER_DEFAULTS) document.getElementById('sender-'+k).value=SENDER_DEFAULTS[k];
+  showToast('↺ Expéditeur réinitialisé','info');
+}
+function getSenderOverrides(){
+  const o={};
+  for(const k in SENDER_DEFAULTS){const el=document.getElementById('sender-'+k);o[k]=(el?.value||'').trim()||SENDER_DEFAULTS[k];}
+  return o;
+}
+
 async function testGenerateBordereau(){
   const tracking=document.getElementById('test-tracking').value.trim();
   if(!tracking){showToast('⚠️ Entrez un numéro de suivi','error');return;}
   const status=document.getElementById('test-bordereau-status');
   status.innerHTML='<span style="color:var(--dim)">⏳ Génération...</span>';
   try{
-    await apiFetch('POST','/bordereau/process',{trackingNumber:tracking},{admin:true});
+    await apiFetch('POST','/bordereau/process',{trackingNumber:tracking,sender:getSenderOverrides()},{admin:true});
     status.innerHTML='<span style="color:var(--ng)">✅ Bordereau envoyé sur Telegram !</span>';
     showToast('✅ Bordereau de test envoyé','success');
-  }catch(e){
-    status.innerHTML=`<span style="color:var(--np)">❌ ${e.message}</span>`;
-    showToast('❌ '+e.message,'error');
-  }
-}
-
-async function testSendFakeOrder(){
-  const productName=document.getElementById('test-product-name').value.trim()||'TEST PRODUIT';
-  const amount=parseFloat(document.getElementById('test-amount').value)||0;
-  const status=document.getElementById('test-order-status');
-  status.innerHTML='<span style="color:var(--dim)">⏳ Envoi...</span>';
-  try{
-    await apiFetch('POST','/test/notify',{
-      text:`📦 *${productName}*\n💰 €${amount}\n💳 TEST\n👤 Admin Test\n\n_Ceci est un message de test — aucune vraie commande._`
-    },{admin:true});
-    status.innerHTML='<span style="color:var(--ng)">✅ Message test envoyé !</span>';
-    showToast('✅ Notification test envoyée','success');
   }catch(e){
     status.innerHTML=`<span style="color:var(--np)">❌ ${e.message}</span>`;
     showToast('❌ '+e.message,'error');

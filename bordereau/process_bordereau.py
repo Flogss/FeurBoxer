@@ -4,7 +4,7 @@ process_bordereau.py — Modifie un bordereau Colissimo RTS PDF
 Usage: python3 process_bordereau.py <nouveau_numero_suivi> <chemin_sortie.pdf>
 """
 
-import sys, os, io
+import sys, os, io, json
 import fitz
 import barcode
 from barcode.writer import ImageWriter
@@ -16,6 +16,21 @@ TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "RTS COL BORDEREAU.pdf")
 OLD_TRACKING      = "6A05681027840"
 OLD_BARCODE_LABEL = "116A 05681027840D"
 FR_COL_TEXT       = "FR-COL-1175-94RUN"
+
+# Bloc expéditeur / point relais (gauche du bordereau).
+# Valeur par défaut (= texte du template) → (fontname, taille).
+# L'ordre suit la clé envoyée par l'admin. On ne réécrit un champ que s'il
+# diffère du défaut (sinon le template d'origine est déjà correct).
+SENDER_FIELDS = {
+    "relais":   ("RELAIS PICKUP",     "hebo", 12),
+    "enseigne": ("FRANPRIX",          "hebo", 10),
+    "name":     ("ARTHUR HAIAT",      "helv",  9),
+    "street":   ("1 RUE TRAVERSIERE", "hebo", 12),
+    "city":     ("94150 RUNGIS",      "hebo", 13),
+}
+# Limite droite du rectangle blanc : le bloc est borné par une boîte
+# (x57→244.6) et un séparateur vertical à x≈245 — on reste sous 240.
+SENDER_RIGHT_MAX = 240.0
 
 # Métriques Helvetica-Bold
 _HEBO      = fitz.Font("hebo")
@@ -75,7 +90,41 @@ def find_span_rawdict(page, target):
     return None
 
 
-def process(new_tracking: str, output_path: str) -> None:
+def apply_sender_overrides(page, sender: dict) -> None:
+    """Réécrit les champs du bloc expéditeur modifiés par l'admin.
+
+    Deux passes : on blanchit d'abord TOUS les anciens textes, puis on pose
+    les nouveaux par-dessus. Sinon le rectangle blanc d'une ligne effacerait
+    le texte de la ligne voisine (interligne serré dans le template).
+    Hauteur du rectangle basée sur la cap-height (et non la bbox, trop haute).
+    """
+    changed = []
+    for key, (default, fontname, size) in SENDER_FIELDS.items():
+        val = (sender.get(key) or "").strip()
+        if val and val != default:
+            span = find_span_rawdict(page, default)
+            if span:
+                changed.append((span, val, fontname, size))
+
+    # Passe 1 — blanchir les anciens textes
+    for span, val, fontname, size in changed:
+        ox, oy = span["origin"]
+        bbox   = span["bbox"]
+        font   = _HEBO if fontname == "hebo" else _HELV
+        new_w  = font.text_length(val, size)
+        right  = min(SENDER_RIGHT_MAX, max(bbox[2], ox + new_w) + 2)
+        cap, desc = 0.72 * size, 0.20 * size
+        wr = fitz.Rect(bbox[0] - 1, oy - cap - 1, right, oy + desc + 1)
+        page.draw_rect(wr, fill=(1, 1, 1), color=None, overlay=True)
+
+    # Passe 2 — poser les nouvelles valeurs (toujours au-dessus des rectangles)
+    for span, val, fontname, size in changed:
+        ox, oy = span["origin"]
+        page.insert_text(fitz.Point(ox, oy), val,
+                         fontname=fontname, fontsize=size, color=(0, 0, 0))
+
+
+def process(new_tracking: str, output_path: str, sender: dict | None = None) -> None:
     if not os.path.exists(TEMPLATE_PATH):
         print(f"Template introuvable : {TEMPLATE_PATH}", file=sys.stderr)
         sys.exit(1)
@@ -83,6 +132,10 @@ def process(new_tracking: str, output_path: str) -> None:
     new_label = format_label(new_tracking)
     doc  = fitz.open(TEMPLATE_PATH)
     page = doc[0]
+
+    # ── 0. Expéditeur / point relais — uniquement les champs modifiés ──────
+    if sender:
+        apply_sender_overrides(page, sender)
 
     # ── Récupérer les spans AVANT modification ─────────────────────────────
     span_tracking = find_span_rawdict(page, OLD_TRACKING)
@@ -142,8 +195,15 @@ def process(new_tracking: str, output_path: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python3 process_bordereau.py <new_tracking> <output_path>",
+    if len(sys.argv) < 3:
+        print("Usage: python3 process_bordereau.py <new_tracking> <output_path> [sender_json]",
               file=sys.stderr)
         sys.exit(1)
-    process(sys.argv[1].strip(), sys.argv[2].strip())
+    sender = None
+    if len(sys.argv) >= 4 and sys.argv[3].strip():
+        try:
+            sender = json.loads(sys.argv[3])
+        except json.JSONDecodeError as e:
+            print(f"sender JSON invalide : {e}", file=sys.stderr)
+            sys.exit(1)
+    process(sys.argv[1].strip(), sys.argv[2].strip(), sender)
