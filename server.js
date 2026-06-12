@@ -384,6 +384,15 @@ const TYPE_FR = {
   yes:'Société', industrial:'Zone industrielle', warehouse:'Entrepôt',
   commercial:'Commerce', retail:'Commerce', storage_tank:'Stockage',
 };
+// Secteur d'activité d'après la section NAF (API recherche-entreprises)
+const SECTION_NAF = {
+  A:'Agriculture', B:'Industrie extractive', C:'Industrie', D:'Énergie', E:'Eau / Déchets',
+  F:'Construction', G:'Commerce', H:'Transport / Logistique', I:'Hôtellerie / Restauration',
+  J:'Information / Communication', K:'Finance / Assurance', L:'Immobilier',
+  M:'Services aux entreprises', N:'Services administratifs', O:'Administration',
+  P:'Éducation', Q:'Santé / Social', R:'Arts / Loisirs', S:'Autres services',
+  T:'Services domestiques', U:'Organisme extraterritorial',
+};
 function typeLabel(raw) {
   if (!raw) return 'Société';
   return TYPE_FR[raw.toLowerCase()] || (raw.charAt(0).toUpperCase() + raw.slice(1));
@@ -443,7 +452,7 @@ app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
 
     // 2. API SIRENE officielle — registre national des entreprises
     const sireResp = await fetch(
-      `https://api.annuaire-entreprises.data.gouv.fr/search?code_postal=${cp}&per_page=25&page=1`,
+      `https://recherche-entreprises.api.gouv.fr/search?code_postal=${cp}&per_page=25&page=1`,
       { headers: { 'User-Agent': 'FeurBoxing/1.0' }, signal: AbortSignal.timeout(9000) }
     );
     if (!sireResp.ok) throw new Error(`SIRENE HTTP ${sireResp.status}`);
@@ -455,30 +464,28 @@ app.post('/api/test/nearby-companies', adminAuth, async (req, res) => {
     const EXCLUDE_NJ = new Set(['1000','1100','1200','1300','1400','1500','5499']);
 
     const results = (sireData.results || [])
-      .filter(co => {
-        const nj = String(co.nature_juridique || '');
-        return !EXCLUDE_NJ.has(nj) && co.nom_complet && co.siege?.numero_voie;
-      })
       .map(co => {
-        const s = co.siege;
-        const streetName = [s.type_voie, s.libelle_voie].filter(Boolean).join(' ');
+        const nj = String(co.nature_juridique || '');
+        if (EXCLUDE_NJ.has(nj) || !co.nom_complet) return null;
+        // Établissement réellement situé dans le code postal recherché (pas le siège, souvent ailleurs)
+        const etab = (co.matching_etablissements || []).find(e => e.adresse) || co.matching_etablissements?.[0];
+        if (!etab || !etab.adresse) return null;
         return {
           name:    co.nom_complet,
-          address: buildAddr(s.numero_voie, streetName, s.code_postal || cp, s.libelle_commune || city),
-          type:    co.categorie_juridique_libelle
-                     ? co.categorie_juridique_libelle.replace(/\s*\(.*?\)/g, '').trim()
-                     : 'Société',
+          address: etab.adresse,
+          type:    SECTION_NAF[co.section_activite_principale] || 'Société',
         };
       })
-      .filter(r => r.address)
+      .filter(Boolean)
       .slice(0, 20);
 
-    const commune = sireData.results?.[0]?.siege?.libelle_commune || city;
+    const commune = sireData.results?.[0]?.matching_etablissements?.[0]?.libelle_commune || city;
     res.json({ geocoded: `${cp} ${commune}`, results });
 
   } catch(e) {
-    console.error('Nearby companies error:', e.message);
-    res.status(500).json({ error: 'Erreur : ' + e.message });
+    const cause = e.cause?.message || e.cause || '';
+    console.error('Nearby companies error:', e.message, cause ? '| cause: ' + cause : '');
+    res.status(500).json({ error: 'Erreur : ' + e.message + (cause ? ' (' + cause + ')' : '') });
   }
 });
 
