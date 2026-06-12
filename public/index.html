@@ -1678,19 +1678,43 @@ function bordParty(title,p,color){
 }
 
 function renderBordereauResult(d){
+  window._lastBord=d;
+  // Par défaut : infos du texte PDF. Si PDF scanné (sans texte) : Aztec.
+  const src=(!d.has_text && d.aztec)?'aztec':'text';
+  return bordView(src);
+}
+
+function bordToggle(src){
+  document.getElementById('bord-results').innerHTML=bordView(src);
+}
+
+function bordView(src){
+  const d=window._lastBord; if(!d) return '';
+  const info=(src==='aztec'&&d.aztec)?d.aztec:(d.text||{});
+  const tracking=info.tracking||d.tracking;
   const chip=(label,val)=> val?`<span style="font-size:.72rem;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);padding:3px 10px;border-radius:20px;margin:0 6px 6px 0;display:inline-block">${label} <strong style="color:var(--nb)">${escHTML(String(val))}</strong></span>`:'';
-  const trk=d.tracking?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-     <span style="font-family:'Share Tech Mono',monospace;font-size:1.1rem;color:var(--ng);letter-spacing:1px">${escHTML(d.tracking)}</span>
-     <button class="action-btn" onclick="navigator.clipboard?.writeText('${escHTML(d.tracking)}').then(()=>showToast('📋 Suivi copié','success'))">📋 COPIER</button></div>`:'<div style="color:var(--np);margin-bottom:10px">⚠️ Numéro de suivi introuvable</div>';
-  const refs=(d.references||[]).map(r=>`<span style="font-size:.7rem;background:rgba(155,93,229,0.1);color:var(--nv);padding:2px 8px;border-radius:8px;margin:0 5px 5px 0;display:inline-block">${escHTML(r)}</span>`).join('');
+  const trk=tracking?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+     <span style="font-family:'Share Tech Mono',monospace;font-size:1.1rem;color:var(--ng);letter-spacing:1px">${escHTML(tracking)}</span>
+     <button class="action-btn" onclick="navigator.clipboard?.writeText('${escHTML(tracking)}').then(()=>showToast('📋 Suivi copié','success'))">📋 COPIER</button></div>`
+    :`<div style="color:var(--no);margin-bottom:10px;font-size:.85rem">⚠️ Aucun numéro de suivi détecté — ce PDF ne semble pas être une étiquette de transport (pas de code-barres ni de suivi).</div>`;
+  const refs=(info.references||[]).map(r=>`<span style="font-size:.7rem;background:rgba(155,93,229,0.1);color:var(--nv);padding:2px 8px;border-radius:8px;margin:0 5px 5px 0;display:inline-block">${escHTML(r)}</span>`).join('');
   const bc=(d.barcodes||[]).map(b=>`<div style="font-size:.7rem;color:var(--dim);word-break:break-all;padding:3px 0"><strong style="color:var(--text)">${escHTML(b.format)}</strong> — ${escHTML(b.text)}</div>`).join('');
+  // Bandeau de source + bascule
+  const usingAztec=(src==='aztec');
+  const srcBadge=`<span style="font-size:.68rem;color:${usingAztec?'var(--no)':'var(--ng)'};font-weight:700">${usingAztec?'🔣 Source : code Aztec':'📄 Source : texte du PDF'}</span>`;
+  const toggle=d.has_aztec?`<button onclick="bordToggle('${usingAztec?'text':'aztec'}')" style="font-size:.66rem;font-family:'Orbitron',sans-serif;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;background:${usingAztec?'rgba(57,255,20,0.1)':'rgba(255,214,10,0.1)'};border:1px solid ${usingAztec?'var(--ng)':'var(--no)'};color:${usingAztec?'var(--ng)':'var(--no)'}">${usingAztec?'📄 VOIR LES INFOS DU PDF':'🔣 VOIR VIA LE CODE AZTEC'}</button>`:'';
+  const multi=d.multi_page?`<div style="font-size:.68rem;color:var(--dim);margin-bottom:8px">📑 PDF de ${d.pages} pages — analyse de l'étiquette page ${d.page_used}.</div>`:'';
   return `<div style="background:rgba(247,37,133,0.04);border:1px solid rgba(247,37,133,0.18);border-radius:12px;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">${srcBadge}${toggle}</div>
+    ${multi}
     ${trk}
-    <div style="margin-bottom:12px">${chip('🚚',d.carrier)}${chip('⚖️',d.weight)}${chip('📅',d.date)}${chip('📦',d.packages)}</div>
+    <div style="margin-bottom:12px">${chip('🚚',d.carrier)}${chip('⚖️',info.weight)}${chip('📅',info.date)}${chip('📦',info.packages)}</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-      ${bordParty('📍 DESTINATAIRE',d.recipient,'var(--nb)')}
-      ${bordParty('📤 EXPÉDITEUR',d.sender,'var(--nv)')}
+      ${bordParty('📍 DESTINATAIRE',info.recipient,'var(--nb)')}
+      ${bordParty('📤 EXPÉDITEUR',info.sender,'var(--nv)')}
     </div>
+    ${(info.phones&&info.phones.length)?`<div style="margin-bottom:8px;font-size:.8rem"><span style="color:var(--dim)">📞 </span>${info.phones.map(escHTML).join(', ')}</div>`:''}
+    ${(info.emails&&info.emails.length)?`<div style="margin-bottom:8px;font-size:.8rem"><span style="color:var(--dim)">✉️ </span>${info.emails.map(escHTML).join(', ')}</div>`:''}
     ${refs?`<div style="margin-bottom:8px"><span style="font-size:.7rem;color:var(--dim)">Références : </span>${refs}</div>`:''}
     ${bc?`<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.75rem;color:var(--dim)">🏷 Codes-barres (${d.barcodes.length})</summary><div style="margin-top:6px">${bc}</div></details>`:''}
   </div>`;

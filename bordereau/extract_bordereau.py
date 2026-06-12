@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""extract_bordereau.py — Analyse un PDF de bordereau de suivi et renvoie ses
-infos structurées en JSON (sur stdout).
+"""extract_bordereau.py — Analyse un PDF de bordereau de suivi → JSON (stdout).
 
-Approche volontairement générique / indépendante de la mise en page :
-  1. Décodage de TOUS les codes-barres (1D + 2D) des pages rendues (zxing-cpp).
-     Les étiquettes Chronopost/GeoPost embarquent un code Aztec contenant
-     l'intégralité des données → fiable même sur un PDF "photo" sans texte.
-  2. Extraction du texte (PyMuPDF) comme source complémentaire.
-  3. Détection du transporteur + extraction par regex (suivi, email, tél,
-     poids, date, code postal) sur l'ensemble texte + codes-barres.
+Deux sources d'information renvoyées séparément :
+  • "text"  : infos lues directement dans le PDF (affichage par défaut)
+  • "aztec" : infos lues dans le code-barres 2D Aztec (GeoPost/Chronopost),
+              utile en secours et sur les PDF scannés sans texte.
+
+Traitement page par page : on ne lit qu'UNE étiquette (la 1re page porteuse
+d'un code-barres ou d'un n° de suivi) pour ne pas mélanger plusieurs colis.
 
 Usage: python3 extract_bordereau.py <input.pdf>
 """
@@ -16,27 +15,35 @@ Usage: python3 extract_bordereau.py <input.pdf>
 import sys, io, json, re
 import fitz
 
-# Séparateurs des codes 2D type MH10/ANSI (GeoPost/Chronopost)
 GS, RS, US, EOT = "\x1d", "\x1e", "\x1f", "\x04"
 
-# zxing-cpp renvoie les caractères de contrôle (0x00–0x20) sous forme de
-# symboles Unicode "Control Pictures" (U+2400+c) — y compris l'espace (U+2420).
-# On reconvertit en caractères réels avant tout parsing.
+
 def _norm(s):
+    # zxing renvoie les caractères de contrôle (0x00–0x20) en symboles U+2400+
     return "".join(chr(ord(c) - 0x2400) if 0x2400 <= ord(c) <= 0x2420 else c for c in s)
 
-# ── Regex génériques ──────────────────────────────────────────────────────
-RE_S10    = re.compile(r"\b([A-Z]{2}\d{9}[A-Z]{2})\b")          # ex: XN107951405JB
-RE_UPS    = re.compile(r"\b(1Z[0-9A-Z]{16})\b")                 # suivi UPS
+
+# ── Regex ─────────────────────────────────────────────────────────────────
+RE_S10    = re.compile(r"\b([A-Z]{2}\d{9}[A-Z]{2})\b")
+RE_UPS    = re.compile(r"\b(1Z[0-9A-Z]{16})\b")
 RE_EMAIL  = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-RE_PHONE  = re.compile(r"(?:\+\d{1,3}[\s.]?|0)\d(?:[\s.]?\d){8}")
 RE_WEIGHT = re.compile(r"(\d{1,3}[.,]\d{1,3})\s?[Kk][Gg]")
 RE_DATE   = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
-RE_CP     = re.compile(r"\b(\d{5})\b")
+RE_DATE2  = re.compile(r"\b(\d{2}/\d{2}/\d{2})\b")
+RE_PHONE  = re.compile(r"(?:\+\d{1,3}[\s.]?|0)\d(?:[\s.]?\d){8}")
+
+COUNTRY = re.compile(r"^[A-Z]{2}\s*-\s*[A-ZÀ-Ÿ].+$|^[A-Z]{2}\s+[A-ZÀ-Ÿ]{3,}.*$")
+LABEL_NOISE = re.compile(
+    r"^(Exp[ée]diteur|Sender|Destinataire|Recipient|Delivery address|T[ée]l[ée]phone|"
+    r"T[ée]l|Tel|Phone|R[ée]f|Ref|Reference|R[ée]f[ée]rence|Poids|Weight|Date|N[°o]|"
+    r"Colis|Track|Service|Contact|Packages|Adresse|Compte|CP71|Collez|Etiquette|Comment|"
+    r"Preuve|Option|Customs|City|Business|Personal|Do not|Please|Remarque|Le colis)\b", re.I)
+SENDER_MK = {"sender", "expéditeur", "expediteur"}
+RECIP_MK  = {"recipient", "destinataire"}
 
 CARRIERS = [
-    ("Chronopost",    [r"chronopost", r"geop", r"fr-chr"]),
     ("Colissimo",     [r"colissimo", r"la poste", r"fr-col"]),
+    ("Chronopost",    [r"chronopost", r"fr-chr", r"geop"]),
     ("UPS",           [r"\bups\b", r"1z[0-9a-z]{16}"]),
     ("DPD",           [r"\bdpd\b"]),
     ("Mondial Relay", [r"mondial\s?relay"]),
@@ -48,116 +55,122 @@ CARRIERS = [
 ]
 
 
-def render_decode(doc):
-    """Décode tous les codes-barres de toutes les pages."""
+def _clean(s):
+    return re.sub(r"\s+", " ", (s or "").strip()) or None
+
+
+def detect_carrier(blob):
+    low = (blob or "").lower()
+    for name, pats in CARRIERS:
+        if any(re.search(p, low) for p in pats):
+            return name
+    return None
+
+
+def _dedup_phones(phones):
+    by_key = {}
+    for ph in phones:
+        key = re.sub(r"\D", "", ph)[-9:]
+        if key and (key not in by_key or ph.count(" ") < by_key[key].count(" ")):
+            by_key[key] = ph
+    return sorted(by_key.values())
+
+
+def _spaced_s10(text):
+    m = re.search(r"\b([A-Z]{2})[ ]([\d][\d ]{7,13}\d)[ ]?([A-Z]{2})\b", text)
+    if m:
+        d = re.sub(r"\D", "", m.group(2))
+        if len(d) == 9:
+            return m.group(1) + d + m.group(3)
+    return None
+
+
+# ── Décodage des codes-barres (par page) ───────────────────────────────────
+def decode_page(page):
     out = []
     try:
         import zxingcpp
         from PIL import Image
     except Exception:
         return out
-    for page in doc:
-        for zoom in (3, 4):
-            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-            img = Image.open(io.BytesIO(pix.tobytes("png")))
-            try:
-                results = zxingcpp.read_barcodes(img)
-            except Exception:
-                results = []
-            for r in results:
-                data = _norm(r.text)                      # vrais caractères de contrôle
-                disp = re.sub(r"[\x00-\x1f]+", " · ", data).strip()  # lisible pour l'UI
-                out.append({"format": str(r.format), "text": disp, "data": data})
-            if out:  # un zoom a suffi
-                break
+    for zoom in (3, 4):
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        try:
+            results = zxingcpp.read_barcodes(img)
+        except Exception:
+            results = []
+        for r in results:
+            data = _norm(r.text)
+            disp = re.sub(r"[\x00-\x1f]+", " · ", data).strip()
+            out.append({"format": str(r.format), "text": disp, "data": data})
+        if out:
+            break
     seen, uniq = set(), []
     for b in out:
-        k = (b["format"], b["data"])
-        if k not in seen:
-            seen.add(k)
+        if (b["format"], b["data"]) not in seen:
+            seen.add((b["format"], b["data"]))
             uniq.append(b)
     return uniq
 
 
-def _clean(s):
-    return re.sub(r"\s+", " ", (s or "").strip()) or None
+def find_label_page(doc):
+    """1re page portant un code-barres ou un n° de suivi (sinon page 1)."""
+    for i, page in enumerate(doc):
+        t = page.get_text("text")
+        bcs = decode_page(page)
+        if bcs or RE_S10.search(t) or _spaced_s10(t):
+            return i, t, bcs
+    return 0, doc[0].get_text("text"), decode_page(doc[0])
 
 
+# ── Parse du code Aztec GeoPost ────────────────────────────────────────────
 def parse_geopost(payload):
-    """Parse le code Aztec GeoPost/Chronopost (séparateurs MH10)."""
     if "[)>" not in payload:
         return {}
     info = {"recipient": {}, "sender": {}}
-    records = payload.replace(EOT, "").split(RS)
-    for rec in records:
+    for rec in payload.replace(EOT, "").split(RS):
         f = rec.split(GS)
         if not f:
             continue
-        # Enregistrement principal : contient le marqueur "GEOP"
         if "GEOP" in f:
             g = f.index("GEOP")
-            # cp dest / 901 / dest_code / tracking13 / GEOP ...
             if g >= 4:
                 cp = re.sub(r"\D", "", f[2])[-5:]
                 if cp:
                     info["recipient"]["postal_code"] = cp
-                info["tracking_internal"] = f[g - 1]
-            # ... weight / packages / N / adresse / ville / / nom
             tail = f[g + 1:]
             for i, v in enumerate(tail):
-                if re.fullmatch(r"\d/\d", v):
+                if re.fullmatch(r"\d+/\d+", v):
                     info["packages"] = v
-                    after = tail[i + 1:]
-                    # poids = 1er token avec KG
-                    for j, w in enumerate(after):
+                    for j, w in enumerate(tail[i + 1:]):
                         if re.search(r"[Kk][Gg]", w):
                             info["weight"] = _clean(w)
-                            rest = [x for x in after[j + 1:] if x and x != "N"]
-                            if len(rest) >= 1:
-                                info["recipient"]["address"] = _clean(rest[0])
-                            if len(rest) >= 2:
-                                info["recipient"]["city"] = _clean(rest[1])
+                            rest = [x for x in tail[i + 1:][j + 1:] if x and x != "N"]
                             if rest:
-                                info["recipient"]["name"] = _clean(rest[-1])
+                                info["recipient"].setdefault("name", _clean(rest[-1]))
                             break
                     break
-        # Bloc expéditeur : 2e champ commence par "S0"
         elif len(f) >= 3 and f[1].startswith("S0"):
-            u = f[2].split(US)
-            info["sender"] = _parse_party(u)
-        # Bloc contact destinataire : champ "G03"
+            info["sender"] = _parse_party_us(f[2].split(US))
         elif "G03" in f:
             joined = US.join(f)
-            u = joined.split(US)
             em = RE_EMAIL.search(joined)
             if em:
                 info["recipient"]["email"] = em.group(0)
             ph = RE_PHONE.search(joined)
-            if ph and "phone" not in info["recipient"]:
-                info["recipient"]["phone"] = _clean(ph.group(0))
-            for v in u:
-                v = _clean(v)
-                if v and not RE_EMAIL.search(v) and not RE_PHONE.fullmatch(v) \
-                   and not re.fullmatch(r"[\d]+", v) and v not in ("G03",) \
-                   and "name" not in info["recipient"]:
-                    info["recipient"]["name"] = v
-                    break
-        # Bloc date/suivi : "D001011"
+            if ph:
+                info["recipient"].setdefault("phone", _clean(ph.group(0)))
         elif len(f) >= 4 and f[1].startswith("D00"):
-            d = f[2]
-            if re.fullmatch(r"\d{6}", d):
-                info["date"] = f"{d[0:2]}/{d[2:4]}/20{d[4:6]}"
+            if re.fullmatch(r"\d{6}", f[2]):
+                info["date"] = f"{f[2][0:2]}/{f[2][2:4]}/20{f[2][4:6]}"
             m = RE_S10.search(GS.join(f))
             if m:
                 info["tracking"] = m.group(1)
     return info
 
 
-def _parse_party(us_fields):
-    """Extrait nom/tél/rue/ville/cp depuis les sous-champs US d'un bloc.
-
-    Structure GeoPost typique : nom, tél, (nom répété), '', rue, '', ville, cp, code.
-    """
+def _parse_party_us(us_fields):
     p, alpha = {}, []
     for v in (x.strip() for x in us_fields):
         if not v:
@@ -169,7 +182,7 @@ def _parse_party(us_fields):
         elif re.fullmatch(r"\d{4,5}", v):
             p.setdefault("postal_code", v)
         elif re.fullmatch(r"\d+", v):
-            continue  # codes numériques internes (250, …)
+            continue
         elif re.match(r"\d+\b", v) and re.search(r"[A-Za-zÀ-ÿ]", v):
             p.setdefault("address", _clean(v))
         elif re.fullmatch(r"[A-Za-zÀ-ÿ'’\- ]+", v):
@@ -182,172 +195,177 @@ def _parse_party(us_fields):
     return p
 
 
-def detect_carrier(blob):
-    low = blob.lower()
-    for name, pats in CARRIERS:
-        for p in pats:
-            if re.search(p, low):
-                return name
-    return None
-
-
-def first(rx, blob, group=1):
-    m = rx.search(blob)
-    return m.group(group) if m else None
-
-
-def extract(pdf_path):
-    doc = fitz.open(pdf_path)
-    text = "\n".join(p.get_text("text") for p in doc)
-    barcodes = render_decode(doc)
-    bc_blob = "\n".join(b["data"] for b in barcodes)
-    blob = text + "\n" + bc_blob
-
-    result = {
-        "carrier": detect_carrier(blob),
-        "tracking": None,
-        "weight": None,
-        "date": None,
-        "packages": None,
-        "recipient": {},
-        "sender": {},
-        "references": [],
-        "emails": [],
-        "phones": [],
-        "barcodes": barcodes,
-        "pages": doc.page_count,
-        "has_text": bool(text.strip()),
-    }
-
-    # Parse du code 2D GeoPost (le plus complet)
+def parse_barcodes(barcodes):
+    info = {"recipient": {}, "sender": {}, "references": [], "emails": [], "phones": []}
     for b in barcodes:
         if "[)>" in b["data"]:
             gp = parse_geopost(b["data"])
             for k in ("tracking", "weight", "date", "packages"):
                 if gp.get(k):
-                    result[k] = gp[k]
-            if gp.get("recipient"):
-                result["recipient"].update({k: v for k, v in gp["recipient"].items() if v})
-            if gp.get("sender"):
-                result["sender"].update({k: v for k, v in gp["sender"].items() if v})
-            break
-
-    # Suivi : code-barres 1D propre > regex globale
-    if not result["tracking"]:
+                    info[k] = gp[k]
+            info["recipient"].update({k: v for k, v in gp.get("recipient", {}).items() if v})
+            info["sender"].update({k: v for k, v in gp.get("sender", {}).items() if v})
+    if not info.get("tracking"):
         for b in barcodes:
             m = RE_S10.search(b["data"]) or RE_UPS.search(b["data"])
             if m:
-                result["tracking"] = m.group(1)
+                info["tracking"] = m.group(1)
                 break
-    if not result["tracking"]:
-        result["tracking"] = first(RE_S10, blob) or first(RE_UPS, blob)
-
-    # Compléments par regex (si non fournis par le 2D)
-    if not result["weight"]:
-        w = first(RE_WEIGHT, blob)
-        if w:
-            result["weight"] = w.replace(",", ".") + " KG"
-    if not result["date"]:
-        result["date"] = first(RE_DATE, text)
-
-    result["emails"] = sorted(set(RE_EMAIL.findall(blob)))
-
-    # Téléphones : ceux du 2D + ceux portant un libellé (évite les fragments de code-barres)
-    phones = set()
-    for party in ("sender", "recipient"):
-        if result[party].get("phone"):
-            phones.add(result[party]["phone"])
-    for m in re.finditer(r"(?:Phone|T[ée]l\.?)\s*:?\.?\s*([+0][\d\s().\-]{8,})", text, re.I):
-        digits = re.sub(r"[^\d+]", "", m.group(1))
-        if re.fullmatch(r"(?:\+\d{1,3})?0?[1-9]\d{8}", digits):
-            phones.add(_clean(m.group(1)))
-    # Dédoublonnage : même numéro (9 derniers chiffres), on garde la version la plus propre
-    by_key = {}
-    for ph in phones:
-        key = re.sub(r"\D", "", ph)[-9:]
-        if key not in by_key or ph.count(" ") < by_key[key].count(" "):
-            by_key[key] = ph
-    result["phones"] = sorted(by_key.values())
-
-    # Poids : format homogène "X.XX kg"
-    if result["weight"]:
-        mw = re.search(r"(\d+[.,]\d+)", result["weight"])
+    blob = "\n".join(b["data"] for b in barcodes)
+    info["emails"] = sorted(set(RE_EMAIL.findall(blob)))
+    info["phones"] = _dedup_phones({p for p in (info["sender"].get("phone"),
+                                                info["recipient"].get("phone")) if p})
+    if info.get("weight"):
+        mw = re.search(r"(\d+[.,]\d+)", info["weight"])
         if mw:
-            result["weight"] = mw.group(1).replace(",", ".") + " kg"
-
-    refs = re.findall(r"(?:Référence|Reference|Ref)\s*(?:de l'envoi)?\s*:\s*([^\n]+)", text)
-    result["references"] = sorted({_clean(r) for r in refs if _clean(r) and len(_clean(r)) < 60})
-
-    # Fallback texte (étiquettes sans code 2D, ex. certains Chronopost internationaux)
-    if not result["recipient"].get("name"):
-        _recipient_from_top(text, result)
-    if not result["sender"].get("name"):
-        _sender_from_text(text, result)
-
-    result["raw_text"] = text[:4000]
-    return result
+            info["weight"] = mw.group(1).replace(",", ".") + " kg"
+    return info
 
 
-COUNTRY_LINE = re.compile(r"^[A-Z]{2}\s+[A-ZÀ-Ÿ]")          # "ES ESPAGNE", "FR FRANCE"
-DIGIT_RUN    = re.compile(r"^[\d ]{9,}$")                    # ligne de chiffres (code-barres)
+# ── Parse du texte du PDF ──────────────────────────────────────────────────
+def _is_noise(l):
+    if not l or LABEL_NOISE.match(l) or COUNTRY.match(l) or len(l) > 45:
+        return True
+    digits = len(re.sub(r"\D", "", l))
+    if re.fullmatch(r"[\d /.\-]+", l) and digits > 6:   # longue suite de chiffres
+        return True
+    if digits >= 8 and digits / len(l) > 0.5:           # ligne de code-barres
+        return True
+    return False
+
+
+def _block_above(lines, i):
+    blk, j = [], i - 1
+    while j >= 0 and len(blk) < 4:
+        l = lines[j]
+        if _is_noise(l):
+            if blk:
+                break
+            j -= 1
+            continue
+        blk.insert(0, l)
+        j -= 1
+    return blk
+
+
+def _block_after(lines, markers):
+    for i, l in enumerate(lines):
+        if l.lower() in markers:
+            blk, j = [], i + 1
+            while j < len(lines) and len(blk) < 4:
+                lj = lines[j]
+                if _is_noise(lj):
+                    if blk:
+                        break
+                    j += 1
+                    continue
+                blk.append(lj)
+                j += 1
+            if blk:
+                return blk
+    return None
 
 
 def _fill_party(block, party):
-    """Renseigne nom/adresse/cp/ville à partir d'un bloc de lignes."""
+    # Ignore les lignes purement numériques en tête (réf client, etc.)
+    while block and re.fullmatch(r"[\d ]+", block[0]):
+        block = block[1:]
     if not block:
         return
-    party.setdefault("name", block[0])
-    rest = block[1:]
-    pcs = [l for l in rest if re.fullmatch(r"\d{4,5}", l)]
-    cities = [l for l in rest if re.fullmatch(r"[A-Za-zÀ-ÿ'’\- ]+", l)]
-    addr = [l for l in rest if l not in pcs and l not in cities]
-    # "25000 Besançon" sur une seule ligne
+    party.setdefault("name", _clean(block[0]))
+    rest, cp_line = block[1:], None
     for l in rest:
-        m = re.match(r"(\d{4,5})\s+([A-Za-zÀ-ÿ'’\- ]+)$", l)
+        m = re.search(r"\b(\d{4,5})\b", l)
         if m:
             party.setdefault("postal_code", m.group(1))
-            party.setdefault("city", _clean(m.group(2)))
-            addr = [a for a in addr if a != l]
-    if pcs:
-        party.setdefault("postal_code", pcs[0])
-    if cities:
-        party.setdefault("city", cities[-1])
-    if addr:
-        party.setdefault("address", addr[0])
-
-
-def _recipient_from_top(text, result):
-    """Destinataire = bloc juste après le n° de suivi (haut de l'étiquette)."""
-    lines = [l.strip() for l in text.splitlines()]
-    trk = result.get("tracking")
-    idx = next((i for i, l in enumerate(lines) if trk and trk in l), None)
-    if idx is None:
-        return
-    block = []
-    for l in lines[idx + 1:idx + 7]:
-        if not l:
-            continue
-        if COUNTRY_LINE.match(l) or DIGIT_RUN.match(l):
+            city = re.sub(r"\b\d{4,5}\b", "", l).strip(" ,-")
+            if re.search(r"[A-Za-zÀ-ÿ]", city):
+                party.setdefault("city", _clean(city))
+            cp_line = l
             break
-        block.append(l)
-    _fill_party(block, result["recipient"])
-
-
-def _sender_from_text(text, result):
-    """Expéditeur = bloc après l'en-tête 'Sender' / 'Expéditeur'."""
-    lines = [l.strip() for l in text.splitlines()]
-    si = next((i for i, l in enumerate(lines)
-               if l.lower() in ("sender", "expéditeur", "expediteur")), None)
-    if si is None:
-        return
-    block = []
-    for l in lines[si + 1:si + 7]:
-        if not l or l.lower().startswith(("phone", "tél", "tel", "reference", "référence")):
-            if block:
-                break
+    for l in rest:
+        if l is cp_line:
             continue
-        block.append(l)
-    _fill_party(block, result["sender"])
+        if re.search(r"[A-Za-zÀ-ÿ]", l) and "address" not in party:
+            party["address"] = _clean(l)
+            break
+    if "city" not in party:
+        for l in rest:
+            if l is not cp_line and re.fullmatch(r"[A-Za-zÀ-ÿ'’\- ]+", l) \
+               and _clean(l) not in (party.get("name"), party.get("address")):
+                party["city"] = _clean(l)
+                break
+
+
+def parse_text(text):
+    info = {"recipient": {}, "sender": {}, "references": [], "emails": [], "phones": []}
+    strp = [l.strip() for l in text.splitlines()]
+
+    m = RE_S10.search(text)
+    info["tracking"] = m.group(1) if m else _spaced_s10(text)
+    w = RE_WEIGHT.search(text)
+    if w:
+        info["weight"] = w.group(1).replace(",", ".") + " kg"
+    d = RE_DATE.search(text) or RE_DATE2.search(text)
+    if d:
+        info["date"] = d.group(1)
+    info["emails"] = sorted(set(RE_EMAIL.findall(text)))
+
+    phones = set()
+    for mm in re.finditer(r"(?:Phone|T[ée]l[ée]?phone|T[ée]l)\s*:?\.?\s*([+0][\d\s().\-]{8,})", text, re.I):
+        digits = re.sub(r"[^\d+]", "", mm.group(1))
+        if re.fullmatch(r"(?:\+\d{1,3})?0?[1-9]\d{8}", digits):
+            phones.add(_clean(mm.group(1)))
+    info["phones"] = _dedup_phones(phones)
+
+    refs = re.findall(r"(?:R[ée]f[ée]rence|Reference|Ref|R[ée]f)\s*(?:de l'envoi|desti|client\.?)?\s*[:.]\s*([^\n]+)", text)
+    info["references"] = sorted({_clean(r) for r in refs
+                                 if _clean(r) and re.search(r"\d", _clean(r)) and len(_clean(r)) < 60})
+
+    country_blocks = [_block_above(strp, i) for i, l in enumerate(strp) if COUNTRY.match(l)]
+    country_blocks = [b for b in country_blocks if b]
+    sender_blk = _block_after(strp, SENDER_MK)
+    recip_blk = _block_after(strp, RECIP_MK)
+    if not sender_blk and country_blocks:
+        sender_blk = country_blocks[0]
+        if not recip_blk and len(country_blocks) > 1:
+            recip_blk = country_blocks[1]
+    if not recip_blk and country_blocks:
+        recip_blk = next((b for b in country_blocks if b != sender_blk), country_blocks[0])
+    if sender_blk:
+        _fill_party(sender_blk, info["sender"])
+    if recip_blk:
+        _fill_party(recip_blk, info["recipient"])
+    return info
+
+
+# ── Orchestration ──────────────────────────────────────────────────────────
+def extract(pdf_path):
+    doc = fitz.open(pdf_path)
+    idx, text, barcodes = find_label_page(doc)
+    bc_blob = "\n".join(b["data"] for b in barcodes)
+
+    text_info = parse_text(text)
+    aztec_info = parse_barcodes(barcodes)
+    has_aztec = any("[)>" in b["data"] for b in barcodes)
+    has_text = bool(text.strip())
+
+    carrier = detect_carrier(text) or detect_carrier(bc_blob)
+    tracking = text_info.get("tracking") or aztec_info.get("tracking")
+
+    return {
+        "carrier": carrier,
+        "tracking": tracking,
+        "pages": doc.page_count,
+        "page_used": idx + 1,
+        "multi_page": doc.page_count > 1,
+        "has_text": has_text,
+        "has_aztec": has_aztec,
+        "text": text_info,
+        "aztec": aztec_info if (has_aztec or aztec_info.get("tracking")) else None,
+        "barcodes": [{"format": b["format"], "text": b["text"]} for b in barcodes],
+        "raw_text": text[:4000],
+    }
 
 
 if __name__ == "__main__":
