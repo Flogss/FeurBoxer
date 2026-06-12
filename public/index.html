@@ -408,13 +408,10 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
     <div class="admin-layout">
       <div class="admin-sidebar">
         <div class="admin-nav-item active" onclick="adminNav('dashboard',this)">📊 <span>Dashboard</span></div>
-        <div class="admin-nav-item" onclick="adminNav('orders',this)">📦 <span>Commandes</span></div>
-        <div class="admin-nav-item" onclick="adminNav('members',this)">👥 <span>Membres</span></div>
+        <div class="admin-nav-item" onclick="adminNav('clients',this)">👥 <span>Clients</span></div>
+        <div class="admin-nav-item" onclick="adminNav('catalog',this)">🛍 <span>Catalogue</span></div>
         <div class="admin-nav-item" onclick="adminNav('messages',this)">💬 <span>Messages</span></div>
-        <div class="admin-nav-item" onclick="adminNav('categories',this)">🗂 <span>Catégories</span></div>
-        <div class="admin-nav-item" onclick="adminNav('products',this)">🛍 <span>Produits</span></div>
-        <div class="admin-nav-item" onclick="adminNav('payments',this)">💳 <span>Paiements</span></div>
-        <div class="admin-nav-item" onclick="adminNav('settings',this)">⚙️ <span>Paramètres</span></div>
+        <div class="admin-nav-item" onclick="adminNav('config',this)">⚙️ <span>Réglages</span></div>
         <div class="admin-nav-item" onclick="adminNav('tests',this)" style="border-left-color:var(--ng);color:var(--ng)">🧪 <span>Tests</span></div>
       </div>
       <div class="admin-content">
@@ -446,7 +443,7 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         </div>
 
         <!-- MEMBERS -->
-        <div class="admin-section" id="admin-members-sec">
+        <div class="admin-section" id="admin-members-sec" style="margin-top:28px;border-top:1px solid var(--border);padding-top:24px">
           <h2 style="font-family:'Orbitron',sans-serif;margin-bottom:20px;font-size:1.2rem">👥 Membres</h2>
           <div class="table-wrap"><table><thead><tr><th>MEMBRE</th><th>USERNAME</th><th>COMMANDES</th><th>DÉPENSÉ</th><th>POINTS</th><th>VU</th></tr></thead><tbody id="adm-members-table"></tbody></table></div>
         </div>
@@ -481,7 +478,7 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         </div>
 
         <!-- PRODUCTS -->
-        <div class="admin-section" id="admin-products-sec">
+        <div class="admin-section" id="admin-products-sec" style="margin-top:28px;border-top:1px solid var(--border);padding-top:24px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
             <h2 style="font-family:'Orbitron',sans-serif;font-size:1.2rem">🛍 Produits</h2>
             <button class="btn-glow btn-primary" style="padding:9px 18px;font-size:.7rem" onclick="openProductModal()">+ AJOUTER</button>
@@ -542,6 +539,13 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
               <button onclick="toggleNearbyHistory()" style="padding:10px 14px;background:rgba(155,93,229,0.1);border:1px solid var(--nv);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.68rem;font-weight:700">🕐 HISTORIQUE</button>
               <div id="test-nearby-status" style="font-size:.8rem;flex:1"></div>
             </div>
+            <!-- Filtre par type -->
+            <div id="nearby-filter-row" style="display:none;margin-top:12px;align-items:center;gap:8px">
+              <label class="form-label" style="margin:0;white-space:nowrap">🏷 TYPE</label>
+              <select id="test-nearby-type" class="form-select" style="flex:1;font-size:.82rem" onchange="filterNearbyType()">
+                <option value="">Tous les types</option>
+              </select>
+            </div>
             <!-- Historique -->
             <div id="nearby-history-panel" style="display:none;margin-top:12px;background:rgba(155,93,229,0.05);border:1px solid rgba(155,93,229,0.2);border-radius:10px;padding:12px">
               <div style="font-family:'Orbitron',sans-serif;font-size:.75rem;color:var(--nv);margin-bottom:8px">🕐 HISTORIQUE DES RECHERCHES</div>
@@ -578,7 +582,7 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         </div>
 
         <!-- SETTINGS -->
-        <div class="admin-section" id="admin-settings-sec">
+        <div class="admin-section" id="admin-settings-sec" style="margin-top:28px;border-top:1px solid var(--border);padding-top:24px">
           <h2 style="font-family:'Orbitron',sans-serif;margin-bottom:20px;font-size:1.2rem">⚙️ Paramètres</h2>
           <div class="glass-card" style="margin-bottom:16px">
             <h3 style="font-family:'Orbitron',sans-serif;font-size:.85rem;color:var(--nb);margin-bottom:14px">📲 TELEGRAM</h3>
@@ -1256,12 +1260,21 @@ async function checkAdminPwd(){
   }catch(e){showToast('❌ Mot de passe incorrect','error');}
 }
 
-function adminNav(section,el){
+// Vues groupées : une entrée de menu peut afficher plusieurs sections empilées
+const ADMIN_VIEWS={
+  dashboard:{secs:['dashboard'],            fns:[refreshAdminDashboard]},
+  clients:  {secs:['orders','members'],     fns:[loadAdminOrders,loadAdminMembers]},
+  catalog:  {secs:['categories','products'],fns:[renderAdminCats,renderAdminProducts]},
+  messages: {secs:['messages'],             fns:[loadAdminMessages]},
+  config:   {secs:['payments','settings'],  fns:[loadAdminPaymentSettings,loadAdminSettings]},
+  tests:    {secs:['tests'],                fns:[]},
+};
+function adminNav(view,el){
   document.querySelectorAll('.admin-nav-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');
   document.querySelectorAll('.admin-section').forEach(s=>s.classList.remove('active'));
-  document.getElementById('admin-'+section+'-sec').classList.add('active');
-  const fns={dashboard:refreshAdminDashboard,orders:loadAdminOrders,members:loadAdminMembers,messages:loadAdminMessages,categories:renderAdminCats,products:renderAdminProducts,payments:loadAdminPaymentSettings,settings:loadAdminSettings,tests:()=>{}};
-  fns[section]?.();
+  const v=ADMIN_VIEWS[view];if(!v)return;
+  v.secs.forEach(s=>document.getElementById('admin-'+s+'-sec').classList.add('active'));
+  v.fns.forEach(fn=>fn?.());
 }
 
 async function refreshAdminDashboard(){
@@ -1352,6 +1365,34 @@ function nextOrderStep(){
 // ── Types entreprises (id → label affiché) ──
 let nearbyAllResults = [];
 let nearbyOffset = 0;
+let nearbyTypeFilter = '';
+
+// Résultats filtrés selon le type sélectionné
+function filteredNearby() {
+  return nearbyTypeFilter
+    ? nearbyAllResults.filter(c => c.type === nearbyTypeFilter)
+    : nearbyAllResults;
+}
+
+// Remplit le menu déroulant avec les types présents dans les résultats
+function populateNearbyTypes() {
+  const sel = document.getElementById('test-nearby-type');
+  const row = document.getElementById('nearby-filter-row');
+  const types = [...new Set(nearbyAllResults.map(c => c.type))].sort();
+  if (types.length <= 1) { row.style.display = 'none'; return; }
+  const counts = {};
+  nearbyAllResults.forEach(c => { counts[c.type] = (counts[c.type] || 0) + 1; });
+  sel.innerHTML = `<option value="">Tous les types (${nearbyAllResults.length})</option>` +
+    types.map(t => `<option value="${t}">${t} (${counts[t]})</option>`).join('');
+  sel.value = nearbyTypeFilter;
+  row.style.display = 'flex';
+}
+
+function filterNearbyType() {
+  nearbyTypeFilter = document.getElementById('test-nearby-type').value;
+  nearbyOffset = 0;
+  renderNearbyPage();
+}
 
 // ── Historique (localStorage) ───────────────────────────────────────────────
 function getNearbyHistory() { try { return JSON.parse(localStorage.getItem('nb_history')||'[]'); } catch{ return []; } }
@@ -1386,20 +1427,23 @@ function restoreNearbyHistory(i) {
   document.getElementById('nearby-history-panel').style.display = 'none';
   nearbyAllResults = item.results;
   nearbyOffset = 0;
+  nearbyTypeFilter = '';
   document.getElementById('test-nearby-status').innerHTML = `<span style="color:var(--nv);font-size:.75rem">↩ Chargé depuis l'historique</span>`;
+  populateNearbyTypes();
   renderNearbyPage();
 }
 
 // ── Pagination ──────────────────────────────────────────────────────────────
 function renderNearbyPage() {
-  const page = nearbyAllResults.slice(nearbyOffset, nearbyOffset + 3);
+  const list = filteredNearby();
+  const page = list.slice(nearbyOffset, nearbyOffset + 3);
   const container = document.getElementById('test-nearby-results');
   const nav       = document.getElementById('test-nearby-nav');
   const prevBtn   = document.getElementById('nearby-prev-btn');
   const nextBtn   = document.getElementById('nearby-next-btn');
 
   if (!page.length) {
-    container.innerHTML = '<p style="color:var(--dim);font-size:.82rem">Plus d\'entreprises disponibles.</p>';
+    container.innerHTML = '<p style="color:var(--dim);font-size:.82rem">Aucune entreprise pour ce filtre.</p>';
     nav.style.display = 'none';
     return;
   }
@@ -1424,12 +1468,12 @@ function renderNearbyPage() {
 
   nav.style.display = 'flex';
   prevBtn.style.display = nearbyOffset > 0 ? '' : 'none';
-  nextBtn.style.display = nearbyOffset + 3 < nearbyAllResults.length ? '' : 'none';
-  if (nearbyOffset === 0 && nearbyOffset + 3 >= nearbyAllResults.length) nav.style.display = 'none';
+  nextBtn.style.display = nearbyOffset + 3 < list.length ? '' : 'none';
+  if (nearbyOffset === 0 && nearbyOffset + 3 >= list.length) nav.style.display = 'none';
 }
 
 function stepNearby(dir) {
-  nearbyOffset = Math.max(0, Math.min(nearbyOffset + dir * 3, nearbyAllResults.length - 1));
+  nearbyOffset = Math.max(0, Math.min(nearbyOffset + dir * 3, filteredNearby().length - 1));
   renderNearbyPage();
   document.getElementById('test-nearby-results').scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
@@ -1447,9 +1491,11 @@ async function searchNearbyCompanies(fresh = true) {
 
   document.getElementById('test-nearby-results').innerHTML = '';
   document.getElementById('test-nearby-nav').style.display = 'none';
+  document.getElementById('nearby-filter-row').style.display = 'none';
   status.innerHTML = '<span style="color:var(--dim)">⏳ Recherche en cours...</span>';
   nearbyAllResults = [];
   nearbyOffset = 0;
+  nearbyTypeFilter = '';
 
   try {
     const r = await apiFetch('POST', '/test/nearby-companies', { address: addr }, { admin: true });
@@ -1461,6 +1507,7 @@ async function searchNearbyCompanies(fresh = true) {
     }
     nearbyAllResults = r.results;
     saveNearbyHistory(addr, r.results);
+    populateNearbyTypes();
     renderNearbyPage();
   } catch(e) {
     status.innerHTML = `<span style="color:var(--np)">❌ ${e.message}</span>`;
