@@ -23,6 +23,15 @@ def _norm(s):
     return "".join(chr(ord(c) - 0x2400) if 0x2400 <= ord(c) <= 0x2420 else c for c in s)
 
 
+# Police anti-copie (étiquettes UPS retour) : les chiffres 0–9 sont mappés sur
+# U+08BF..U+08C8. On les reconvertit pour rendre le texte lisible.
+_DEOBF = {0x08BF + i: str(i) for i in range(10)}
+
+
+def _deobf(s):
+    return s.translate(_DEOBF) if s else s
+
+
 # ── Regex ─────────────────────────────────────────────────────────────────
 RE_S10    = re.compile(r"\b([A-Z]{2}\d{9}[A-Z]{2})\b")
 RE_UPS    = re.compile(r"\b(1Z[0-9A-Z]{16})\b")
@@ -263,9 +272,9 @@ def _street_clusters(lines):
     for i, l in enumerate(lines):
         if _is_noise(l) or not _looks_street(l):
             continue
-        # nom : ligne proche (au-dessus ou en-dessous) avec ≥2 mots alpha
+        # nom : ligne proche (±3, au-dessus ou en-dessous) avec ≥2 mots alpha
         name = None
-        for j in (i - 1, i + 1, i - 2, i + 2):
+        for j in (i + 1, i - 1, i + 2, i - 2, i + 3, i - 3):
             if 0 <= j < len(lines):
                 c = lines[j].strip()
                 if c and not _is_noise(c) and not _looks_street(c) \
@@ -418,6 +427,7 @@ def parse_text(text):
 def extract(pdf_path):
     doc = fitz.open(pdf_path)
     idx, text, barcodes = find_label_page(doc)
+    text = _deobf(text)   # rend lisibles les polices anti-copie (UPS retour, etc.)
     bc_blob = "\n".join(b["data"] for b in barcodes)
 
     text_info = parse_text(text)
