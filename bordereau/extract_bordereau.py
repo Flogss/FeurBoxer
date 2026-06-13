@@ -211,6 +211,15 @@ def parse_barcodes(barcodes):
             if m:
                 info["tracking"] = m.group(1)
                 break
+    # Repli : contenu d'un code-barres lisible (ni Aztec structuré, ni code de routage)
+    if not info.get("tracking"):
+        for b in barcodes:
+            t = b["data"].strip()
+            if "[)>" in t or t.startswith("%"):
+                continue
+            if re.fullmatch(r"[A-Za-z0-9\-]{8,40}", t):
+                info["tracking"] = t
+                break
     blob = "\n".join(b["data"] for b in barcodes)
     info["emails"] = sorted(set(RE_EMAIL.findall(blob)))
     info["phones"] = _dedup_phones({p for p in (info["sender"].get("phone"),
@@ -223,8 +232,13 @@ def parse_barcodes(barcodes):
 
 
 # ── Parse du texte du PDF ──────────────────────────────────────────────────
+STREET = re.compile(r"\b(rue|avenue|av|bd|boulevard|chemin|impasse|all[ée]e|route|quai|place|cours|chauss[ée]e|voie|lot|zone|za[ce]?)\b", re.I)
+
+
 def _is_noise(l):
     if not l or LABEL_NOISE.match(l) or COUNTRY.match(l) or len(l) > 45:
+        return True
+    if re.fullmatch(r"\d+\s*/\s*\d+", l):               # "1 / 1" (colis)
         return True
     digits = len(re.sub(r"\D", "", l))
     if re.fullmatch(r"[\d /.\-]+", l) and digits > 6:   # longue suite de chiffres
@@ -232,6 +246,50 @@ def _is_noise(l):
     if digits >= 8 and digits / len(l) > 0.5:           # ligne de code-barres
         return True
     return False
+
+
+def _looks_street(l):
+    return bool(re.match(r"^\d+\b.*[A-Za-zÀ-ÿ]", l)) or bool(STREET.search(l))
+
+
+def _valid_block(blk):
+    """Un bloc d'adresse crédible contient un code postal ou une voie."""
+    return any(re.search(r"\b\d{4,5}\b", l) or _looks_street(l) for l in blk)
+
+
+def _street_clusters(lines):
+    """Repli : regroupe nom/rue/CP/ville autour d'une ligne de voie."""
+    out = []
+    for i, l in enumerate(lines):
+        if _is_noise(l) or not _looks_street(l):
+            continue
+        # nom : ligne proche (au-dessus ou en-dessous) avec ≥2 mots alpha
+        name = None
+        for j in (i - 1, i + 1, i - 2, i + 2):
+            if 0 <= j < len(lines):
+                c = lines[j].strip()
+                if c and not _is_noise(c) and not _looks_street(c) \
+                   and not re.search(r"\d{4,5}", c) and re.match(r"[A-Za-zÀ-ÿ]+ [A-Za-zÀ-ÿ]", c):
+                    name = c
+                    break
+        cp = city = None
+        for j in range(i, min(i + 4, len(lines))):
+            mm = re.search(r"\b(\d{4,5})\b", lines[j])
+            if mm and not _looks_street(lines[j]):
+                cp = mm.group(1)
+                rest = re.sub(r"\b\d{4,5}\b", "", lines[j]).strip(" -,")
+                if len(rest) >= 3 and not re.fullmatch(r"[A-Z]{2}", rest) and re.search(r"[A-Za-zÀ-ÿ]", rest):
+                    city = rest
+                if not city:
+                    for k in range(j + 1, min(j + 3, len(lines))):
+                        cand = lines[k].strip()
+                        if re.fullmatch(r"[A-Za-zÀ-ÿ'’\- ]{3,}", cand):
+                            city = cand
+                            break
+                break
+        out.append({k: v for k, v in {"name": _clean(name), "address": _clean(l),
+                                       "postal_code": cp, "city": _clean(city)}.items() if v})
+    return out
 
 
 def _block_above(lines, i):
@@ -322,10 +380,13 @@ def parse_text(text):
     info["references"] = sorted({_clean(r) for r in refs
                                  if _clean(r) and re.search(r"\d", _clean(r)) and len(_clean(r)) < 60})
 
-    country_blocks = [_block_above(strp, i) for i, l in enumerate(strp) if COUNTRY.match(l)]
-    country_blocks = [b for b in country_blocks if b]
+    country_blocks = [b for b in (_block_above(strp, i) for i, l in enumerate(strp) if COUNTRY.match(l)) if b and _valid_block(b)]
     sender_blk = _block_after(strp, SENDER_MK)
     recip_blk = _block_after(strp, RECIP_MK)
+    if sender_blk and not _valid_block(sender_blk):
+        sender_blk = None
+    if recip_blk and not _valid_block(recip_blk):
+        recip_blk = None
     if not sender_blk and country_blocks:
         sender_blk = country_blocks[0]
         if not recip_blk and len(country_blocks) > 1:
@@ -336,6 +397,20 @@ def parse_text(text):
         _fill_party(sender_blk, info["sender"])
     if recip_blk:
         _fill_party(recip_blk, info["recipient"])
+
+    # Repli : clusters de voie pour les destinataire/expéditeur encore vides
+    if not info["recipient"].get("name") or not info["sender"].get("name"):
+        clusters = _street_clusters(strp)
+        used = set()
+        for party in ("recipient", "sender"):
+            if info[party].get("name"):
+                continue
+            for ci, c in enumerate(clusters):
+                if ci in used or not c.get("name"):
+                    continue
+                info[party] = c
+                used.add(ci)
+                break
     return info
 
 
