@@ -728,11 +728,21 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         </div>
       </div>
       <!-- Stats -->
-      <div class="admin-grid" style="margin-bottom:20px">
-        <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--ng)" id="drop-stat-revenue">—</div><div class="admin-stat-label">Revenus drops</div></div>
+      <div class="admin-grid" style="margin-bottom:16px">
+        <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--ng)" id="drop-stat-revenue">—</div><div class="admin-stat-label">Revenus totaux</div></div>
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--nb)" id="drop-stat-done">—</div><div class="admin-stat-label">Drops effectués</div></div>
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--no)" id="drop-stat-pending">—</div><div class="admin-stat-label">En attente</div></div>
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--nv)" id="drop-stat-today">—</div><div class="admin-stat-label">Reçus aujourd'hui</div></div>
+        <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--ng);font-size:1.1rem" id="drop-stat-week">—</div><div class="admin-stat-label">Cette semaine</div></div>
+        <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--np);font-size:1.1rem" id="drop-stat-month">—</div><div class="admin-stat-label">Ce mois</div></div>
+      </div>
+      <!-- Graphique revenus 7 jours -->
+      <div class="glass-card" style="margin-bottom:20px;border-color:rgba(57,255,20,0.15)">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.82rem;color:var(--ng);margin-bottom:10px;letter-spacing:1px">📈 REVENUS 7 DERNIERS JOURS</div>
+        <div class="rev-chart" id="drop-rev-chart" style="height:90px"></div>
+        <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;font-size:.8rem">
+          <span style="color:var(--dim)">En attente (non droppés) : <strong style="color:var(--no)" id="drop-stat-rev-pending">—</strong></span>
+        </div>
       </div>
     </div>
     <!-- Actions -->
@@ -2217,24 +2227,64 @@ async function loadDropEntries(){
   }
 }
 
+function dropPrice(e){
+  return Number((dropSettings.dropPrices||{})[String(e.senderId)]??dropSettings.dropPriceDefault??5);
+}
+
 function updateDropStats(){
   const dropped=dropEntries.filter(e=>e.status==='dropped');
   const pending=dropEntries.filter(e=>e.status==='received');
   const today=new Date().toDateString();
   const todayAll=dropEntries.filter(e=>new Date(e.date).toDateString()===today);
-  const revenue=dropped.reduce((s,e)=>{
-    const p=Number((dropSettings.dropPrices||{})[String(e.senderId)]??dropSettings.dropPriceDefault??5);
-    return s+p;
-  },0);
+  const revenue=dropped.reduce((s,e)=>s+dropPrice(e),0);
+  const pendingRev=pending.reduce((s,e)=>s+dropPrice(e),0);
+
+  // Semaine / mois
+  const now=new Date();
+  const dayOfWeek=now.getDay()||7;
+  const weekStart=new Date(now);weekStart.setDate(now.getDate()-dayOfWeek+1);weekStart.setHours(0,0,0,0);
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+  const weekRev=dropped.filter(e=>new Date(e.droppedAt||e.date)>=weekStart).reduce((s,e)=>s+dropPrice(e),0);
+  const monthRev=dropped.filter(e=>new Date(e.droppedAt||e.date)>=monthStart).reduce((s,e)=>s+dropPrice(e),0);
+
   animateCount(document.getElementById('drop-stat-revenue'),revenue,'€');
   animateCount(document.getElementById('drop-stat-done'),dropped.length);
   animateCount(document.getElementById('drop-stat-pending'),pending.length);
   animateCount(document.getElementById('drop-stat-today'),todayAll.length);
+  animateCount(document.getElementById('drop-stat-week'),weekRev,'€');
+  animateCount(document.getElementById('drop-stat-month'),monthRev,'€');
+  const pr=document.getElementById('drop-stat-rev-pending');if(pr)pr.textContent='€'+pendingRev;
+
+  // Graphique 7 jours
+  const days=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const key=d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+    const dayRev=dropped.filter(e=>{
+      const ed=new Date(e.droppedAt||e.date);
+      return ed.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})===key;
+    }).reduce((s,e)=>s+dropPrice(e),0);
+    days.push({day:key,revenue:dayRev});
+  }
+  const chart=document.getElementById('drop-rev-chart');
+  if(chart){
+    const max=Math.max(...days.map(d=>d.revenue),1);
+    chart.innerHTML=days.map(d=>`
+      <div class="rev-bar-wrap">
+        <div class="rev-bar" style="height:${Math.max(3,(d.revenue/max)*82)}px" title="€${d.revenue}"></div>
+        <div class="rev-day">${d.day}</div>
+      </div>`).join('');
+  }
 }
 
 function renderDropList(){
   const filter=document.getElementById('drop-filter-sel')?.value||'';
-  const list=filter?dropEntries.filter(e=>e.status===filter):dropEntries;
+  const base=filter?dropEntries.filter(e=>e.status===filter):dropEntries;
+  // Tri : en attente d'abord, droppés en bas (puis les plus récents en tête dans chaque groupe)
+  const list=[...base].sort((a,b)=>{
+    if(a.status===b.status)return new Date(b.date)-new Date(a.date);
+    return a.status==='received'?-1:1;
+  });
   const el=document.getElementById('drop-entries-list');
   if(!list.length){
     el.innerHTML=`<div style="text-align:center;padding:60px;color:var(--dim)">
@@ -2244,7 +2294,7 @@ function renderDropList(){
     return;
   }
   el.innerHTML=list.map((e,i)=>{
-    const price=Number((dropSettings.dropPrices||{})[String(e.senderId)]??dropSettings.dropPriceDefault??5);
+    const price=dropPrice(e);
     const isImg=/\.(jpg|jpeg|png|webp|gif)$/i.test(e.filename||'');
     const isPdf=/\.pdf$/i.test(e.filename||'');
     const fileUrl='/uploads/'+encodeURIComponent(e.filename||'');
@@ -2256,14 +2306,20 @@ function renderDropList(){
       ?`<span class="drop-status drop-status-dropped">✅ DROPPÉ</span>`
       :`<span class="drop-status drop-status-received">⏳ EN ATTENTE</span>`;
     const isDropped=e.status==='dropped';
-    return `<div class="drop-card${isDropped?' is-dropped':''}" id="dcard-${e.id}" style="animation-delay:${i*0.04}s">
+    const descHtml=e.description
+      ?`<span id="drop-desc-text-${escHTML(e.id)}">${escHTML(e.description)}</span>`
+      :`<span id="drop-desc-text-${escHTML(e.id)}" style="color:var(--dim);font-style:italic;font-size:.82rem">Aucune description</span>`;
+    return `<div class="drop-card${isDropped?' is-dropped':''}" id="dcard-${escHTML(e.id)}" style="animation-delay:${i*0.04}s">
       <input type="checkbox" class="drop-card-check" value="${escHTML(e.id)}" onchange="updateDropSelUI()">
       <div class="drop-preview">${preview}</div>
       <div class="drop-card-body">
         <div style="margin-bottom:4px">${badge}<span class="drop-price-chip">€${price}/drop</span></div>
         <div class="drop-sender">👤 ${escHTML(e.senderName||'Inconnu')}${e.senderUsername?` <span style="color:var(--dim);font-weight:400;font-size:.75rem">@${escHTML(e.senderUsername)}</span>`:''}</div>
-        <div class="drop-desc">${e.description?escHTML(e.description):'<span style="color:var(--dim);font-style:italic;font-size:.82rem">Aucune description</span>'}</div>
-        <div class="drop-date">📅 ${new Date(e.date).toLocaleString('fr-FR')}</div>
+        <div class="drop-desc" id="drop-desc-${escHTML(e.id)}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${descHtml}
+          <button onclick="editDropDesc('${escHTML(e.id)}')" style="background:none;border:none;cursor:pointer;color:var(--dim);font-size:.75rem;padding:2px 5px;border-radius:4px;transition:.2s" title="Modifier" onmouseover="this.style.color='var(--nv)'" onmouseout="this.style.color='var(--dim)'">✏️</button>
+        </div>
+        <div class="drop-date">📅 ${new Date(e.date).toLocaleString('fr-FR')}${e.forwardedBy?` <span style="color:var(--nv);font-size:.68rem">· transféré</span>`:''}</div>
         <div class="drop-actions">
           <button class="drop-btn drop-btn-print" onclick="printDrop('${escHTML(e.id)}')">🖨 Imprimer</button>
           <button class="drop-btn drop-btn-crop" onclick="cropDrop('${escHTML(e.id)}')">✂️ Recadrer</button>
@@ -2372,16 +2428,44 @@ function updateDropSelUI(){
   const btn=document.getElementById('drop-sel-all-btn');
   if(btn)btn.textContent=n>0?`☑ ${n} SÉLECTIONNÉ(S)`:'☑ TOUT SÉLECTIONNER';
 }
-async function printSelectedDrop(){
+function printSelectedDrop(){
   const checked=[...document.querySelectorAll('.drop-card-check:checked')];
   if(!checked.length){showToast('⚠️ Sélectionnez au moins un bordereau','error');return;}
-  const ids=checked.map(c=>c.value);
-  for(const id of ids){
-    const e=dropEntries.find(x=>x.id===id);if(!e)continue;
-    window.open('/uploads/'+encodeURIComponent(e.filename||''),'_blank');
-    await new Promise(r=>setTimeout(r,600));
+  const entries=checked.map(c=>dropEntries.find(e=>e.id===c.value)).filter(Boolean);
+  // Ouvrir toutes les fenêtres en synchrone (nécessaire pour éviter le bloqueur de popups)
+  const opened=entries.map(e=>window.open('/uploads/'+encodeURIComponent(e.filename||''),'_blank'));
+  const valid=opened.filter(Boolean);
+  // Pour 1 seul fichier : déclencher l'impression automatiquement
+  if(valid.length===1){
+    setTimeout(()=>{try{valid[0].print();}catch(ex){}},1200);
   }
-  showToast(`🖨 ${ids.length} bordereau(x) ouverts pour impression`,'info');
+  showToast(`🖨 ${valid.length} bordereau(x) ouvert(s) — imprimez depuis chaque onglet`,'info');
+}
+
+function editDropDesc(id){
+  const e=dropEntries.find(x=>x.id===id);if(!e)return;
+  const wrap=document.getElementById('drop-desc-'+id);if(!wrap)return;
+  const cur=e.description||'';
+  wrap.innerHTML=`<input type="text" id="desc-inp-${escHTML(id)}" class="form-input"
+    value="${escHTML(cur)}" style="flex:1;padding:5px 10px;font-size:.88rem"
+    placeholder="Description…"
+    onkeydown="if(event.key==='Enter'){event.preventDefault();saveDropDesc('${escHTML(id)}');}if(event.key==='Escape')renderDropList();"
+    onblur="saveDropDesc('${escHTML(id)}')">`;
+  document.getElementById('desc-inp-'+id)?.focus();
+}
+
+async function saveDropDesc(id){
+  const inp=document.getElementById('desc-inp-'+id);if(!inp)return;
+  const desc=inp.value.trim();
+  const e=dropEntries.find(x=>x.id===id);
+  if(!e){renderDropList();return;}
+  if(e.description===desc){renderDropList();return;}
+  try{
+    await apiFetch('PUT','/drop/entries/'+id+'/description',{description:desc});
+    e.description=desc;
+    showToast('✅ Description mise à jour','success');
+  }catch(ex){showToast('❌ '+ex.message,'error');}
+  renderDropList();
 }
 
 // Drop Settings

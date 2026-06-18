@@ -167,11 +167,32 @@ function startDropBot() {
     async function handleFile(msg, fileId, originalName, mimeType) {
       try {
         const filename = await downloadTgFile(token, dropBot, fileId);
+
+        // Priorité : expéditeur d'origine si message transféré
+        let senderId, senderName, senderUsername;
+        if (msg.forward_from) {
+          // Transfert avec infos complètes
+          senderId = String(msg.forward_from.id);
+          senderName = (msg.forward_from.first_name + ' ' + (msg.forward_from.last_name || '')).trim();
+          senderUsername = msg.forward_from.username || '';
+        } else if (msg.forward_sender_name) {
+          // Transfert avec confidentialité activée — seulement le nom
+          senderId = 'fwd-' + msg.from.id;
+          senderName = msg.forward_sender_name;
+          senderUsername = '';
+        } else {
+          // Message direct
+          senderId = String(msg.from.id);
+          senderName = (msg.from.first_name + ' ' + (msg.from.last_name || '')).trim();
+          senderUsername = msg.from.username || '';
+        }
+
         const entry = {
           id: 'DRP-' + Date.now().toString(36).toUpperCase(),
-          senderId: String(msg.from.id),
-          senderName: (msg.from.first_name + ' ' + (msg.from.last_name || '')).trim(),
-          senderUsername: msg.from.username || '',
+          senderId,
+          senderName,
+          senderUsername,
+          forwardedBy: (msg.forward_from || msg.forward_sender_name) ? String(msg.from.id) : null,
           description: msg.caption || '',
           filename,
           originalName: originalName || filename,
@@ -678,6 +699,14 @@ app.put('/api/drop/entries/:id/drop', (req, res) => {
   if (!entry) return res.status(404).json({ error: 'Not found' });
   entry.status = 'dropped';
   entry.droppedAt = new Date().toISOString();
+  db.updateDropEntry(entry);
+  res.json({ ok: true });
+});
+
+app.put('/api/drop/entries/:id/description', (req, res) => {
+  const entry = db.getDropEntryById(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  entry.description = String(req.body.description || '').slice(0, 500);
   db.updateDropEntry(entry);
   res.json({ ok: true });
 });
