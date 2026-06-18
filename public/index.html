@@ -373,8 +373,25 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
 .drop-price-chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.65rem;font-family:'Share Tech Mono',monospace;background:rgba(0,212,255,0.07);color:var(--nb);border:1px solid rgba(0,212,255,0.2);margin-left:5px;}
 .drop-top-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;}
 .drop-act-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
-.crop-range{width:100%;accent-color:var(--nv);cursor:pointer;}
-.crop-frame-wrap{overflow:hidden;position:relative;height:310px;background:#111;border-radius:10px;border:1px solid var(--border);margin-bottom:16px;}
+/* ── CROP drag lines ── */
+.crop-container{position:relative;width:100%;height:350px;background:#111;border-radius:10px;border:1px solid var(--border);overflow:hidden;margin-bottom:16px;user-select:none;touch-action:none;}
+.crop-shade{position:absolute;background:rgba(0,0,0,0.62);pointer-events:none;}
+#cs-top{top:0;left:0;right:0;height:0;}
+#cs-bottom{bottom:0;left:0;right:0;height:0;}
+#cs-left{top:0;bottom:0;left:0;width:0;}
+#cs-right{top:0;bottom:0;right:0;width:0;}
+.crop-handle{position:absolute;z-index:20;transition:opacity .15s;}
+.crop-handle:hover{opacity:.75;}
+.crop-handle-h{left:0;right:0;height:5px;background:var(--nb);cursor:ns-resize;box-shadow:0 0 10px var(--nb)66;}
+.crop-handle-v{top:0;bottom:0;width:5px;background:var(--nv);cursor:ew-resize;box-shadow:0 0 10px var(--nv)66;}
+#ch-top{top:0;}#ch-bottom{bottom:0;}#ch-left{left:0;}#ch-right{right:0;}
+.crop-label{position:absolute;font-family:'Share Tech Mono',monospace;font-size:.62rem;padding:1px 6px;border-radius:4px;z-index:21;pointer-events:none;white-space:nowrap;}
+#cl-top,#cl-bottom{background:var(--nb);color:#000;left:50%;transform:translateX(-50%);}
+#cl-left,#cl-right{background:var(--nv);color:#fff;top:50%;transform:translateY(-50%);}
+#cl-top{top:7px;}#cl-bottom{bottom:7px;}#cl-left{left:7px;}#cl-right{right:7px;}
+/* ── Stats drop compactes ── */
+.drop-stat-grid .admin-stat-val{font-size:1.05rem;}
+.drop-stat-grid .admin-stat-card{padding:11px 14px;}
 #crop-iframe{border:none;background:#fff;position:absolute;top:0;left:0;}
 .price-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
 .price-row:last-child{border-bottom:none;}
@@ -728,7 +745,7 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         </div>
       </div>
       <!-- Stats -->
-      <div class="admin-grid" style="margin-bottom:16px">
+      <div class="admin-grid drop-stat-grid" style="margin-bottom:16px">
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--ng)" id="drop-stat-revenue">—</div><div class="admin-stat-label">Revenus totaux</div></div>
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--nb)" id="drop-stat-done">—</div><div class="admin-stat-label">Drops effectués</div></div>
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--no)" id="drop-stat-pending">—</div><div class="admin-stat-label">En attente</div></div>
@@ -1003,11 +1020,18 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
       <h3 style="font-family:'Orbitron',sans-serif;font-size:.82rem;color:var(--nv);margin-bottom:12px">👥 PRIX PAR EXPÉDITEUR</h3>
       <div id="drop-prices-list"><p style="color:var(--dim);font-size:.82rem">Aucun expéditeur connu pour l'instant.</p></div>
     </div>
-    <div class="glass-card" style="margin-bottom:16px">
+    <div class="glass-card" style="margin-bottom:14px">
       <h3 style="font-family:'Orbitron',sans-serif;font-size:.82rem;color:var(--nb);margin-bottom:12px">🤖 BOT DROP — TOKEN</h3>
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label">Token Telegram du bot drop</label>
         <input id="drop-bot-token-input" class="form-input" placeholder="123456:ABC..." style="font-family:'Share Tech Mono',monospace;font-size:.82rem">
+      </div>
+    </div>
+    <div class="glass-card" style="margin-bottom:16px">
+      <h3 style="font-family:'Orbitron',sans-serif;font-size:.82rem;color:var(--np);margin-bottom:12px">🔔 NOTIFICATIONS</h3>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">ID Telegram — reçoit une notif à chaque nouveau bordereau</label>
+        <input id="drop-notify-uid" class="form-input" placeholder="ex: 7689926720" style="font-family:'Share Tech Mono',monospace;font-size:.88rem">
       </div>
     </div>
     <button class="btn-glow btn-primary" style="width:100%" onclick="saveDropSettings()">💾 SAUVEGARDER</button>
@@ -1016,18 +1040,24 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
 
 <!-- CROP MODAL -->
 <div class="modal-overlay" id="modal-crop">
-  <div class="modal" style="max-width:700px">
+  <div class="modal" style="max-width:720px">
     <button class="modal-close" onclick="closeModal('modal-crop')">✕</button>
     <div class="modal-title">✂️ RECADRER &amp; IMPRIMER</div>
-    <div class="modal-sub">Ajustez le recadrage puis lancez l'impression</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
-      <div><label class="form-label">HAUT — <span id="cv-top">0</span>%</label><input type="range" class="crop-range" id="cr-top" min="0" max="40" value="0" oninput="updateCropPreview()"></div>
-      <div><label class="form-label">BAS — <span id="cv-bottom">0</span>%</label><input type="range" class="crop-range" id="cr-bottom" min="0" max="40" value="0" oninput="updateCropPreview()"></div>
-      <div><label class="form-label">GAUCHE — <span id="cv-left">0</span>%</label><input type="range" class="crop-range" id="cr-left" min="0" max="40" value="0" oninput="updateCropPreview()"></div>
-      <div><label class="form-label">DROITE — <span id="cv-right">0</span>%</label><input type="range" class="crop-range" id="cr-right" min="0" max="40" value="0" oninput="updateCropPreview()"></div>
-    </div>
-    <div class="crop-frame-wrap">
-      <iframe id="crop-iframe" scrolling="no" style="width:100%;height:100%;border:none;background:#fff"></iframe>
+    <div class="modal-sub">Glissez les lignes <span style="color:var(--nb)">bleues</span> (haut/bas) ou <span style="color:var(--nv)">violettes</span> (gauche/droite)</div>
+    <div id="crop-container" class="crop-container">
+      <iframe id="crop-iframe" scrolling="no" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:#fff;pointer-events:none"></iframe>
+      <div id="cs-top" class="crop-shade"></div>
+      <div id="cs-bottom" class="crop-shade"></div>
+      <div id="cs-left" class="crop-shade"></div>
+      <div id="cs-right" class="crop-shade"></div>
+      <div id="ch-top" class="crop-handle crop-handle-h" data-dir="top"></div>
+      <div id="ch-bottom" class="crop-handle crop-handle-h" data-dir="bottom"></div>
+      <div id="ch-left" class="crop-handle crop-handle-v" data-dir="left"></div>
+      <div id="ch-right" class="crop-handle crop-handle-v" data-dir="right"></div>
+      <div id="cl-top" class="crop-label">0%</div>
+      <div id="cl-bottom" class="crop-label">0%</div>
+      <div id="cl-left" class="crop-label">0%</div>
+      <div id="cl-right" class="crop-label">0%</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-glow btn-primary" style="flex:1" onclick="printFromCrop()">🖨 IMPRIMER AVEC CE RECADRAGE</button>
@@ -2339,15 +2369,14 @@ function renderDropList(){
       :`<span id="drop-desc-text-${escHTML(e.id)}" style="color:var(--dim);font-style:italic;font-size:.82rem">Aucune description</span>`;
     return `<div class="drop-card${isDropped?' is-dropped':''}" id="dcard-${escHTML(e.id)}" style="animation-delay:${i*0.04}s">
       <input type="checkbox" class="drop-card-check" value="${escHTML(e.id)}" onchange="updateDropSelUI()">
-      <div class="drop-preview">${preview}</div>
       <div class="drop-card-body">
         <div style="margin-bottom:4px">${badge}${carrierBadge}<span class="drop-price-chip">€${price}/drop</span></div>
-        <div class="drop-sender">👤 ${escHTML(e.senderName||'Inconnu')}${e.senderUsername?` <span style="color:var(--dim);font-weight:400;font-size:.75rem">@${escHTML(e.senderUsername)}</span>`:''}</div>
+        <div class="drop-sender">👤 ${escHTML(e.senderName||'Inconnu')}</div>
         <div class="drop-desc" id="drop-desc-${escHTML(e.id)}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${descHtml}
           <button onclick="editDropDesc('${escHTML(e.id)}')" style="background:none;border:none;cursor:pointer;color:var(--dim);font-size:.75rem;padding:2px 5px;border-radius:4px;transition:.2s" title="Modifier" onmouseover="this.style.color='var(--nv)'" onmouseout="this.style.color='var(--dim)'">✏️</button>
         </div>
-        <div class="drop-date">📅 ${new Date(e.date).toLocaleString('fr-FR')}${e.forwardedBy?` <span style="color:var(--nv);font-size:.68rem">· transféré</span>`:''}</div>
+        <div class="drop-date">📅 ${new Date(e.date).toLocaleString('fr-FR')}</div>
         <div class="drop-actions">
           <button class="drop-btn drop-btn-print" onclick="printDrop('${escHTML(e.id)}')">🖨 Imprimer</button>
           <button class="drop-btn drop-btn-crop" onclick="cropDrop('${escHTML(e.id)}')">✂️ Recadrer</button>
@@ -2390,55 +2419,115 @@ function cropDrop(id){
   const e=dropEntries.find(x=>x.id===id);if(!e)return;
   dropCropUrl='/uploads/'+encodeURIComponent(e.filename||'');
   dropCropName=e.filename||'';
-  resetCrop();
-  document.getElementById('crop-iframe').src=dropCropUrl;
   openModal('modal-crop');
+  requestAnimationFrame(()=>{
+    initCropDrag();
+    resetCrop();
+    document.getElementById('crop-iframe').src=dropCropUrl;
+  });
 }
 
-function updateCropPreview(){
-  const get=k=>parseInt(document.getElementById('cr-'+k).value)||0;
-  const top=get('top'),bottom=get('bottom'),left=get('left'),right=get('right');
-  ['top','bottom','left','right'].forEach(k=>{
-    document.getElementById('cv-'+k).textContent=get(k);
+// ── CROP drag lines ──
+let cropState={top:0,bottom:0,left:0,right:0};
+let _cropDrag=null;
+let _cropDragInit=false;
+
+function initCropDrag(){
+  if(_cropDragInit)return;
+  _cropDragInit=true;
+  const onStart=dir=>e=>{e.preventDefault();_cropDrag=dir;document.body.style.cursor=(dir==='top'||dir==='bottom')?'ns-resize':'ew-resize';};
+  ['top','bottom','left','right'].forEach(dir=>{
+    const h=document.getElementById('ch-'+dir);
+    if(!h)return;
+    h.addEventListener('mousedown',onStart(dir));
+    h.addEventListener('touchstart',onStart(dir),{passive:false});
   });
-  const wrap=document.querySelector('.crop-frame-wrap');
+  const onMove=(cx,cy)=>{
+    if(!_cropDrag)return;
+    const container=document.getElementById('crop-container');
+    const rect=container.getBoundingClientRect();
+    const cw=rect.width,ch=rect.height;
+    const MAX=55;
+    if(_cropDrag==='top'){
+      let p=Math.max(0,Math.min(MAX,((cy-rect.top)/ch)*100));
+      if(p+cropState.bottom>MAX)p=MAX-cropState.bottom;
+      cropState.top=p;
+    }else if(_cropDrag==='bottom'){
+      let p=Math.max(0,Math.min(MAX,((rect.bottom-cy)/ch)*100));
+      if(p+cropState.top>MAX)p=MAX-cropState.top;
+      cropState.bottom=p;
+    }else if(_cropDrag==='left'){
+      let p=Math.max(0,Math.min(MAX,((cx-rect.left)/cw)*100));
+      if(p+cropState.right>MAX)p=MAX-cropState.right;
+      cropState.left=p;
+    }else if(_cropDrag==='right'){
+      let p=Math.max(0,Math.min(MAX,((rect.right-cx)/cw)*100));
+      if(p+cropState.left>MAX)p=MAX-cropState.left;
+      cropState.right=p;
+    }
+    applyCropHandles();
+  };
+  document.addEventListener('mousemove',e=>{if(_cropDrag)onMove(e.clientX,e.clientY);});
+  document.addEventListener('mouseup',()=>{_cropDrag=null;document.body.style.cursor='';});
+  document.addEventListener('touchmove',e=>{if(_cropDrag){e.preventDefault();const t=e.touches[0];onMove(t.clientX,t.clientY);}},{passive:false});
+  document.addEventListener('touchend',()=>{_cropDrag=null;});
+}
+
+function applyCropHandles(){
+  const container=document.getElementById('crop-container');
+  if(!container)return;
+  const cw=container.clientWidth,ch=container.clientHeight;
+  const tp=(cropState.top/100)*ch,bp=(cropState.bottom/100)*ch;
+  const lp=(cropState.left/100)*cw,rp=(cropState.right/100)*cw;
+  document.getElementById('ch-top').style.top=tp+'px';
+  document.getElementById('ch-bottom').style.bottom=bp+'px';
+  document.getElementById('ch-left').style.left=lp+'px';
+  document.getElementById('ch-right').style.right=rp+'px';
+  document.getElementById('cs-top').style.height=tp+'px';
+  document.getElementById('cs-bottom').style.height=bp+'px';
+  document.getElementById('cs-left').style.width=lp+'px';
+  document.getElementById('cs-right').style.width=rp+'px';
+  const tl=document.getElementById('cl-top');tl.style.top=(tp+7)+'px';tl.textContent=Math.round(cropState.top)+'%';
+  const bl=document.getElementById('cl-bottom');bl.style.bottom=(bp+7)+'px';bl.textContent=Math.round(cropState.bottom)+'%';
+  const ll=document.getElementById('cl-left');ll.style.left=(lp+7)+'px';ll.textContent=Math.round(cropState.left)+'%';
+  const rl=document.getElementById('cl-right');rl.style.right=(rp+7)+'px';rl.textContent=Math.round(cropState.right)+'%';
+  // Live preview : zoom sur la zone non rognée
   const frame=document.getElementById('crop-iframe');
-  const cw=wrap.clientWidth,ch=wrap.clientHeight;
-  const scaleW=1-(left+right)/100, scaleH=1-(top+bottom)/100;
-  const fw=scaleW>0?cw/scaleW:cw;
-  const fh=scaleH>0?ch/scaleH:ch;
-  frame.style.width=fw+'px';
-  frame.style.height=fh+'px';
-  frame.style.left='-'+(left/100*fw)+'px';
-  frame.style.top='-'+(top/100*fh)+'px';
+  if(frame){
+    const scaleW=Math.max(0.05,1-(cropState.left+cropState.right)/100);
+    const scaleH=Math.max(0.05,1-(cropState.top+cropState.bottom)/100);
+    const fw=cw/scaleW,fh=ch/scaleH;
+    frame.style.width=fw+'px';frame.style.height=fh+'px';
+    frame.style.left='-'+(cropState.left/100*fw)+'px';
+    frame.style.top='-'+(cropState.top/100*fh)+'px';
+  }
 }
 
 function resetCrop(){
-  ['top','bottom','left','right'].forEach(k=>{
-    document.getElementById('cr-'+k).value=0;
-    document.getElementById('cv-'+k).textContent=0;
-  });
+  cropState={top:0,bottom:0,left:0,right:0};
   const frame=document.getElementById('crop-iframe');
-  frame.style.width='100%';frame.style.height='100%';
-  frame.style.left='0';frame.style.top='0';
+  if(frame){frame.style.width='100%';frame.style.height='100%';frame.style.left='0';frame.style.top='0';}
+  applyCropHandles();
 }
 
 function printFromCrop(){
   if(!dropCropUrl)return;
-  const get=k=>parseInt(document.getElementById('cr-'+k).value)||0;
-  const top=get('top'),bottom=get('bottom'),left=get('left'),right=get('right');
+  const {top,bottom,left,right}=cropState;
   const isPdf=/\.pdf$/i.test(dropCropName);
   const pw=window.open('','_blank');
   if(!pw)return;
+  const scaleW=Math.max(0.01,1-(left+right)/100);
+  const scaleH=Math.max(0.01,1-(top+bottom)/100);
   pw.document.write(`<!DOCTYPE html><html><head>
     <style>
-      @page{margin:${top}mm ${right}mm ${bottom}mm ${left}mm}
-      body{margin:0;padding:0;background:#fff}
-      ${isPdf?'embed,iframe{width:100%;height:100vh;border:none}':'img{width:100%;display:block}'}
+      @page{margin:0}html,body{margin:0;padding:0;overflow:hidden;width:100vw;height:100vh;}
+      .cw{position:fixed;top:0;left:0;width:100vw;height:100vh;overflow:hidden;}
+      ${isPdf
+        ?`.cw embed{position:absolute;width:${100/scaleW}vw;height:${100/scaleH}vh;top:${-top/scaleH}vh;left:${-left/scaleW}vw;border:none;}`
+        :`.cw img{position:absolute;width:${100/scaleW}vw;height:${100/scaleH}vh;top:${-top/scaleH}vh;left:${-left/scaleW}vw;}`}
     </style></head><body>
-    ${isPdf
-      ?`<embed src="${dropCropUrl}" type="application/pdf" width="100%" height="100%">`
-      :`<img src="${dropCropUrl}">`}
+    <div class="cw">${isPdf?`<embed src="${dropCropUrl}" type="application/pdf">`:
+    `<img src="${dropCropUrl}">`}</div>
   </body></html>`);
   pw.document.close();
   setTimeout(()=>{pw.print();},1400);
@@ -2531,6 +2620,7 @@ async function openDropSettings(){
     dropSettings=s;
     document.getElementById('drop-default-price').value=s.dropPriceDefault??5;
     document.getElementById('drop-bot-token-input').value=s.dropBotToken||'';
+    document.getElementById('drop-notify-uid').value=s.dropNotifyUid||'';
     renderDropPrices();
     openModal('modal-drop-settings');
   }catch(e){showToast('❌ '+e.message,'error');}
@@ -2566,6 +2656,7 @@ function renderDropPrices(){
 async function saveDropSettings(){
   const defaultPrice=parseFloat(document.getElementById('drop-default-price').value)||5;
   const botToken=document.getElementById('drop-bot-token-input').value.trim();
+  const notifyUid=document.getElementById('drop-notify-uid').value.trim();
   const prices={};
   const senders={};
   dropEntries.forEach(e=>{senders[e.senderId]=true;});
@@ -2574,8 +2665,8 @@ async function saveDropSettings(){
     if(inp)prices[id]=parseFloat(inp.value)||defaultPrice;
   });
   try{
-    await apiFetch('PUT','/drop/settings',{dropPriceDefault:defaultPrice,dropPrices:prices,dropBotToken:botToken});
-    dropSettings={dropBotToken:botToken,dropPriceDefault:defaultPrice,dropPrices:prices};
+    await apiFetch('PUT','/drop/settings',{dropPriceDefault:defaultPrice,dropPrices:prices,dropBotToken:botToken,dropNotifyUid:notifyUid});
+    dropSettings={dropBotToken:botToken,dropPriceDefault:defaultPrice,dropPrices:prices,dropNotifyUid:notifyUid};
     closeModal('modal-drop-settings');
     renderDropList();updateDropStats();
     showToast('✅ Réglages drop sauvegardés','success');

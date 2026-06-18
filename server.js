@@ -141,24 +141,23 @@ async function sendClientFileToAdmin(order) {
   } catch(e) { console.error('sendClientFile error:', e.message); }
 }
 
-// ── DÉTECTION TRANSPORTEUR ──
-const CARRIER_KEYWORDS = [
-  ['Colissimo',     ['colissimo','la poste','laposte']],
-  ['Chronopost',    ['chronopost']],
-  ['DPD',           ['dpd']],
-  ['UPS',           ['ups']],
-  ['Mondial Relay', ['mondial relay','mondialrelay']],
-  ['Relais Colis',  ['relais colis','relaiscolis']],
-  ['DHL',           ['dhl']],
-  ['GLS',           ['gls']],
-  ['FedEx',         ['fedex','fed ex']],
-  ['Bpost',         ['bpost','b post']],
+// ── DÉTECTION TRANSPORTEUR (regex avec abréviations) ──
+const CARRIER_PATTERNS = [
+  ['Colissimo',     [/colissimo/i, /la[\s-]?poste/i, /laposte/i, /\bcol\b/i]],
+  ['Chronopost',    [/chronopost/i, /\bchr\b/i, /\bchron\b/i]],
+  ['DPD',           [/\bdpd\b/i]],
+  ['UPS',           [/\bups\b/i]],
+  ['Mondial Relay', [/mondial[\s-]?relay/i, /mondialrelay/i, /\bmr\b/i]],
+  ['Relais Colis',  [/relais[\s-]?colis/i, /relaiscolis/i, /\brc\b/i]],
+  ['DHL',           [/\bdhl\b/i]],
+  ['GLS',           [/\bgls\b/i]],
+  ['FedEx',         [/fedex/i, /fed[\s-]?ex/i]],
+  ['Bpost',         [/\bbpost\b/i, /b[\s-]post/i]],
 ];
 function detectCarrier(text) {
   if (!text) return null;
-  const t = text.toLowerCase();
-  for (const [name, kws] of CARRIER_KEYWORDS) {
-    if (kws.some(k => t.includes(k))) return name;
+  for (const [name, patterns] of CARRIER_PATTERNS) {
+    if (patterns.some(p => p.test(text))) return name;
   }
   return null;
 }
@@ -241,7 +240,16 @@ function startDropBot() {
             } catch(e) {}
           });
         }
-        const price = (settings.dropPrices || {})[String(msg.from.id)] ?? settings.dropPriceDefault ?? 5;
+        const price = (settings.dropPrices || {})[senderId] ?? settings.dropPriceDefault ?? 5;
+
+        // Notification vers le destinataire configuré
+        const notifyUid = settings.dropNotifyUid;
+        if (notifyUid) {
+          const pending = db.getDropEntries().filter(e => e.status === 'received').length;
+          const notifMsg = `📦 *Nouveau bordereau reçu !*\n\n👤 ${senderName}\n📝 ${caption || '_(sans description)_'}\n💰 €${price}/drop\n${entry.carrier ? '🚚 ' + entry.carrier + '\n' : ''}📊 En attente : *${pending}* bordereau(x)`;
+          dropBot.sendMessage(notifyUid, notifMsg, { parse_mode: 'Markdown' }).catch(() => {});
+        }
+
         await dropBot.sendMessage(msg.chat.id,
           `✅ *Bordereau reçu !*\n\n📋 \`${entry.id}\`\n💰 Tarif drop : €${price}\n📝 ${entry.description || '_(sans description)_'}\n\nEnregistré dans le panel drop.`,
           { parse_mode: 'Markdown' }
@@ -794,7 +802,7 @@ app.post('/api/drop/print', (req, res) => {
 // ── DROP SETTINGS ──
 app.get('/api/drop/settings', (req, res) => {
   const s = db.getSettings();
-  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {} });
+  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {}, dropNotifyUid: s.dropNotifyUid || '' });
 });
 
 app.put('/api/drop/settings', (req, res) => {
@@ -802,6 +810,7 @@ app.put('/api/drop/settings', (req, res) => {
   if (req.body.dropBotToken !== undefined) update.dropBotToken = req.body.dropBotToken;
   if (req.body.dropPriceDefault !== undefined) update.dropPriceDefault = Number(req.body.dropPriceDefault) || 5;
   if (req.body.dropPrices !== undefined) update.dropPrices = req.body.dropPrices;
+  if (req.body.dropNotifyUid !== undefined) update.dropNotifyUid = String(req.body.dropNotifyUid).trim();
   db.updateSettings(update);
   if (req.body.dropBotToken) setTimeout(startDropBot, 500);
   res.json({ ok: true });

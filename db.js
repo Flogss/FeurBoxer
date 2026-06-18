@@ -86,6 +86,7 @@ function getDb() {
   if (!_db.settings.dropBotToken) _db.settings.dropBotToken = process.env.DROP_BOT_TOKEN || '';
   if (_db.settings.dropPriceDefault === undefined) _db.settings.dropPriceDefault = 5;
   if (!_db.settings.dropPrices) _db.settings.dropPrices = {};
+  if (!_db.settings.dropNotifyUid) _db.settings.dropNotifyUid = '';
   return _db;
 }
 
