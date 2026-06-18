@@ -752,11 +752,13 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         <button onclick="printSelectedDrop()" style="padding:8px 14px;background:rgba(155,93,229,0.07);border:1px solid rgba(155,93,229,0.25);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem">🖨 IMPRIMER SÉLECTION</button>
         <div style="flex:1"></div>
         <select id="drop-filter-sel" class="form-select" style="width:auto;padding:8px 12px;font-size:.82rem" onchange="renderDropList()">
-          <option value="">Tous</option>
+          <option value="">Tous statuts</option>
           <option value="received">En attente</option>
           <option value="dropped">Droppés</option>
         </select>
       </div>
+      <!-- Filtre transporteurs -->
+      <div id="drop-carrier-filters" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
     </div>
     <!-- List -->
     <div class="drop-list-wrap">
@@ -2211,7 +2213,7 @@ async function saveSettings(){
 }
 
 // ── DROP PANEL ──
-let dropEntries=[], dropSettings={dropPriceDefault:5,dropPrices:{}}, dropCropUrl='', dropCropName='';
+let dropEntries=[], dropSettings={dropPriceDefault:5,dropPrices:{}}, dropCropUrl='', dropCropName='', dropCarrierFilter='';
 
 async function loadDropEntries(){
   const list=document.getElementById('drop-entries-list');
@@ -2221,6 +2223,7 @@ async function loadDropEntries(){
       apiFetch('GET','/drop/settings')
     ]);
     updateDropStats();
+    renderCarrierFilters();
     renderDropList();
   }catch(e){
     if(list)list.innerHTML='<p style="color:var(--np);text-align:center;padding:40px">❌ Erreur de chargement</p>';
@@ -2277,9 +2280,32 @@ function updateDropStats(){
   }
 }
 
+const CARRIER_COLORS={
+  'Colissimo':'#FFCD00','Chronopost':'#F07800','DPD':'#DC0032','UPS':'#FFB500',
+  'Mondial Relay':'#E2001A','Relais Colis':'#E4002B','DHL':'#D40511',
+  'GLS':'#009DE0','FedEx':'#4D148C','Bpost':'#E20020'
+};
+
+function renderCarrierFilters(){
+  const carriers=[...new Set(dropEntries.map(e=>e.carrier).filter(Boolean))].sort();
+  const el=document.getElementById('drop-carrier-filters');
+  if(!el)return;
+  if(!carriers.length){el.innerHTML='';return;}
+  const allBtn=`<button onclick="setCarrierFilter('')" style="padding:5px 12px;border-radius:20px;border:1px solid ${dropCarrierFilter===''?'var(--nb)':'var(--border)'};background:${dropCarrierFilter===''?'rgba(0,212,255,0.15)':'transparent'};color:${dropCarrierFilter===''?'var(--nb)':'var(--dim)'};cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.78rem;transition:.2s">Tous</button>`;
+  const btns=carriers.map(c=>{
+    const col=CARRIER_COLORS[c]||'#00d4ff';
+    const active=dropCarrierFilter===c;
+    return `<button onclick="setCarrierFilter('${escHTML(c)}')" style="padding:5px 12px;border-radius:20px;border:1px solid ${active?col+'cc':col+'44'};background:${active?col+'22':'transparent'};color:${active?col:col+'99'};cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.78rem;transition:.2s">${escHTML(c)}</button>`;
+  }).join('');
+  el.innerHTML=allBtn+btns;
+}
+
+function setCarrierFilter(c){dropCarrierFilter=c;renderCarrierFilters();renderDropList();}
+
 function renderDropList(){
-  const filter=document.getElementById('drop-filter-sel')?.value||'';
-  const base=filter?dropEntries.filter(e=>e.status===filter):dropEntries;
+  const statusFilter=document.getElementById('drop-filter-sel')?.value||'';
+  let base=statusFilter?dropEntries.filter(e=>e.status===statusFilter):dropEntries;
+  if(dropCarrierFilter)base=base.filter(e=>e.carrier===dropCarrierFilter);
   // Tri : en attente d'abord, droppés en bas (puis les plus récents en tête dans chaque groupe)
   const list=[...base].sort((a,b)=>{
     if(a.status===b.status)return new Date(b.date)-new Date(a.date);
@@ -2305,6 +2331,8 @@ function renderDropList(){
     const badge=e.status==='dropped'
       ?`<span class="drop-status drop-status-dropped">✅ DROPPÉ</span>`
       :`<span class="drop-status drop-status-received">⏳ EN ATTENTE</span>`;
+    const carrierCol=e.carrier?(CARRIER_COLORS[e.carrier]||'#00d4ff'):null;
+    const carrierBadge=e.carrier?`<span style="padding:2px 9px;border-radius:10px;font-size:.65rem;font-family:'Share Tech Mono',monospace;font-weight:700;border:1px solid ${carrierCol}66;color:${carrierCol};background:${carrierCol}18;margin-left:4px">${escHTML(e.carrier)}</span>`:'';
     const isDropped=e.status==='dropped';
     const descHtml=e.description
       ?`<span id="drop-desc-text-${escHTML(e.id)}">${escHTML(e.description)}</span>`
@@ -2313,7 +2341,7 @@ function renderDropList(){
       <input type="checkbox" class="drop-card-check" value="${escHTML(e.id)}" onchange="updateDropSelUI()">
       <div class="drop-preview">${preview}</div>
       <div class="drop-card-body">
-        <div style="margin-bottom:4px">${badge}<span class="drop-price-chip">€${price}/drop</span></div>
+        <div style="margin-bottom:4px">${badge}${carrierBadge}<span class="drop-price-chip">€${price}/drop</span></div>
         <div class="drop-sender">👤 ${escHTML(e.senderName||'Inconnu')}${e.senderUsername?` <span style="color:var(--dim);font-weight:400;font-size:.75rem">@${escHTML(e.senderUsername)}</span>`:''}</div>
         <div class="drop-desc" id="drop-desc-${escHTML(e.id)}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${descHtml}
@@ -2428,18 +2456,46 @@ function updateDropSelUI(){
   const btn=document.getElementById('drop-sel-all-btn');
   if(btn)btn.textContent=n>0?`☑ ${n} SÉLECTIONNÉ(S)`:'☑ TOUT SÉLECTIONNER';
 }
-function printSelectedDrop(){
+async function printSelectedDrop(){
   const checked=[...document.querySelectorAll('.drop-card-check:checked')];
   if(!checked.length){showToast('⚠️ Sélectionnez au moins un bordereau','error');return;}
-  const entries=checked.map(c=>dropEntries.find(e=>e.id===c.value)).filter(Boolean);
-  // Ouvrir toutes les fenêtres en synchrone (nécessaire pour éviter le bloqueur de popups)
-  const opened=entries.map(e=>window.open('/uploads/'+encodeURIComponent(e.filename||''),'_blank'));
-  const valid=opened.filter(Boolean);
-  // Pour 1 seul fichier : déclencher l'impression automatiquement
-  if(valid.length===1){
-    setTimeout(()=>{try{valid[0].print();}catch(ex){}},1200);
+  const ids=checked.map(c=>c.value);
+  const entries=ids.map(id=>dropEntries.find(e=>e.id===id)).filter(Boolean);
+
+  // Fichier unique : ouvrir et imprimer directement
+  if(entries.length===1){
+    const w=window.open('/uploads/'+encodeURIComponent(entries[0].filename||''),'_blank');
+    if(w)setTimeout(()=>{try{w.print();}catch(ex){}},1200);
+    return;
   }
-  showToast(`🖨 ${valid.length} bordereau(x) ouvert(s) — imprimez depuis chaque onglet`,'info');
+
+  showToast('⏳ Fusion en cours…','info');
+  try{
+    const r=await apiFetch('POST','/drop/print',{ids});
+    if(r.type==='pdf'){
+      // PDF fusionné — ouvrir dans un onglet + impression auto
+      const w=window.open(r.url,'_blank');
+      if(w)setTimeout(()=>{try{w.print();}catch(ex){}},1400);
+    } else {
+      // Fallback HTML : page unique avec tous les fichiers bout à bout
+      const pw=window.open('','_blank');
+      if(!pw){showToast('⚠️ Popups bloqués — autorisez-les','error');return;}
+      const parts=r.urls.map(u=>{
+        const isPdf=/\.pdf$/i.test(u);
+        return isPdf
+          ?`<div style="page-break-after:always;height:100vh"><embed src="${u}" type="application/pdf" width="100%" height="100%"></div>`
+          :`<img src="${u}" style="width:100%;display:block;page-break-after:always">`;
+      }).join('');
+      pw.document.write(`<!DOCTYPE html><html><head><style>
+        @page{margin:0}body{margin:0;background:#fff}
+        embed{display:block}img{max-width:100%;height:auto}
+      </style></head><body>${parts}</body></html>`);
+      pw.document.close();
+      setTimeout(()=>{try{pw.print();}catch(ex){}},1600);
+    }
+  }catch(err){
+    showToast('❌ '+err.message,'error');
+  }
 }
 
 function editDropDesc(id){

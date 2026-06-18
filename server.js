@@ -141,6 +141,28 @@ async function sendClientFileToAdmin(order) {
   } catch(e) { console.error('sendClientFile error:', e.message); }
 }
 
+// ── DÉTECTION TRANSPORTEUR ──
+const CARRIER_KEYWORDS = [
+  ['Colissimo',     ['colissimo','la poste','laposte']],
+  ['Chronopost',    ['chronopost']],
+  ['DPD',           ['dpd']],
+  ['UPS',           ['ups']],
+  ['Mondial Relay', ['mondial relay','mondialrelay']],
+  ['Relais Colis',  ['relais colis','relaiscolis']],
+  ['DHL',           ['dhl']],
+  ['GLS',           ['gls']],
+  ['FedEx',         ['fedex','fed ex']],
+  ['Bpost',         ['bpost','b post']],
+];
+function detectCarrier(text) {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  for (const [name, kws] of CARRIER_KEYWORDS) {
+    if (kws.some(k => t.includes(k))) return name;
+  }
+  return null;
+}
+
 // ── DROP BOT ──
 async function downloadTgFile(token, bot, fileId) {
   const fileInfo = await bot.getFile(fileId);
@@ -187,20 +209,38 @@ function startDropBot() {
           senderUsername = msg.from.username || '';
         }
 
+        const caption = msg.caption || '';
         const entry = {
           id: 'DRP-' + Date.now().toString(36).toUpperCase(),
           senderId,
           senderName,
           senderUsername,
           forwardedBy: (msg.forward_from || msg.forward_sender_name) ? String(msg.from.id) : null,
-          description: msg.caption || '',
+          description: caption,
           filename,
           originalName: originalName || filename,
           mimeType: mimeType || '',
           date: new Date().toISOString(),
-          status: 'received'
+          status: 'received',
+          carrier: detectCarrier(caption) || null
         };
         db.addDropEntry(entry);
+
+        // Détection transporteur depuis le PDF en arrière-plan
+        if (/\.pdf$/i.test(filename) && !entry.carrier) {
+          const pdfPath = path.join(__dirname, 'uploads', filename);
+          const script  = path.join(__dirname, 'bordereau', 'extract_bordereau.py');
+          execFile(PYTHON, [script, pdfPath], { timeout: 25000 }, (err, stdout) => {
+            if (err) return;
+            try {
+              const data = JSON.parse(stdout);
+              if (data.carrier) {
+                entry.carrier = data.carrier;
+                db.updateDropEntry(entry);
+              }
+            } catch(e) {}
+          });
+        }
         const price = (settings.dropPrices || {})[String(msg.from.id)] ?? settings.dropPriceDefault ?? 5;
         await dropBot.sendMessage(msg.chat.id,
           `✅ *Bordereau reçu !*\n\n📋 \`${entry.id}\`\n💰 Tarif drop : €${price}\n📝 ${entry.description || '_(sans description)_'}\n\nEnregistré dans le panel drop.`,
@@ -718,6 +758,37 @@ app.delete('/api/drop/entries/:id', (req, res) => {
   }
   db.deleteDropEntry(req.params.id);
   res.json({ ok: true });
+});
+
+// ── DROP : FUSION POUR IMPRESSION ──
+app.post('/api/drop/print', (req, res) => {
+  const ids = req.body.ids;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids requis' });
+
+  const entries = ids.map(id => db.getDropEntryById(id)).filter(Boolean);
+  const files   = entries.map(e => path.join(__dirname, 'uploads', e.filename)).filter(f => fs.existsSync(f));
+  if (!files.length) return res.status(404).json({ error: 'Fichiers introuvables' });
+
+  const allPdf = files.every(f => /\.pdf$/i.test(f));
+  if (!allPdf) {
+    // Renvoyer les URLs pour impression HTML côté client
+    return res.json({ type: 'html', urls: files.map(f => '/uploads/' + path.basename(f)) });
+  }
+
+  const outFile = path.join(__dirname, 'uploads', 'merged-' + Date.now() + '.pdf');
+  const script  = path.join(__dirname, 'bordereau', 'merge_pdfs.py');
+  execFile(PYTHON, [script, JSON.stringify(files), outFile], { timeout: 30000 }, (err, stdout) => {
+    if (err) {
+      console.error('Merge error:', err.message);
+      // Fallback : URLs individuelles
+      return res.json({ type: 'html', urls: files.map(f => '/uploads/' + path.basename(f)) });
+    }
+    try {
+      const r = JSON.parse(stdout);
+      if (r.error) return res.json({ type: 'html', urls: files.map(f => '/uploads/' + path.basename(f)) });
+    } catch(e) {}
+    res.json({ type: 'pdf', url: '/uploads/' + path.basename(outFile) });
+  });
 });
 
 // ── DROP SETTINGS ──
