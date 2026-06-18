@@ -45,8 +45,9 @@ const DEFAULT_DB = {
   orders: [],
   members: [],
   settings: {
-    adminUid:    process.env.ADMIN_UID      || '',
-    botToken:    process.env.BOT_TOKEN      || '',
+    adminUid:      process.env.ADMIN_UID        || '',
+    botToken:      process.env.BOT_TOKEN        || '',
+    dropBotToken:  process.env.DROP_BOT_TOKEN   || '',
     botUsername: '',
     webappUrl:   process.env.WEBAPP_URL     || 'http://localhost:3000',
     adminPwd:    process.env.ADMIN_PASSWORD || 'admin2024',
@@ -81,6 +82,10 @@ function getDb() {
     _db = JSON.parse(JSON.stringify(DEFAULT_DB));
   }
   if (!_db.members) _db.members = [];
+  if (!_db.dropEntries) _db.dropEntries = [];
+  if (!_db.settings.dropBotToken) _db.settings.dropBotToken = process.env.DROP_BOT_TOKEN || '';
+  if (_db.settings.dropPriceDefault === undefined) _db.settings.dropPriceDefault = 5;
+  if (!_db.settings.dropPrices) _db.settings.dropPrices = {};
   return _db;
 }
 
@@ -148,6 +153,13 @@ module.exports = {
   // Settings
   getSettings:    () => getDb().settings,
   updateSettings: (s) => { const d = getDb(); d.settings = { ...d.settings, ...s }; persistDb(); },
+
+  // Drop entries
+  getDropEntries: () => getDb().dropEntries,
+  getDropEntryById: (id) => getDb().dropEntries.find(e => e.id === id),
+  addDropEntry: (entry) => { getDb().dropEntries.unshift(entry); persistDb(); },
+  updateDropEntry: (entry) => { const d = getDb(); d.dropEntries = d.dropEntries.map(e => e.id === entry.id ? entry : e); persistDb(); },
+  deleteDropEntry: (id) => { const d = getDb(); d.dropEntries = d.dropEntries.filter(e => e.id !== id); persistDb(); },
 
   // Force-sync products to DEFAULT_DB catalog (called on server startup)
   syncProducts: () => {

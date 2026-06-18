@@ -40,8 +40,9 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ── BOT ──
+// ── BOTS ──
 let bot;
+let dropBot;
 
 function startBot() {
   const settings = db.getSettings();
@@ -140,7 +141,78 @@ async function sendClientFileToAdmin(order) {
   } catch(e) { console.error('sendClientFile error:', e.message); }
 }
 
+// ── DROP BOT ──
+async function downloadTgFile(token, bot, fileId) {
+  const fileInfo = await bot.getFile(fileId);
+  const ext = path.extname(fileInfo.file_path) || '.bin';
+  const filename = `drop-${Date.now()}${ext}`;
+  const destPath = path.join(__dirname, 'uploads', filename);
+  const url = `https://api.telegram.org/file/bot${token}/${fileInfo.file_path}`;
+  const resp = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  if (!resp.ok) throw new Error('Téléchargement échoué : ' + resp.status);
+  fs.writeFileSync(destPath, Buffer.from(await resp.arrayBuffer()));
+  return filename;
+}
+
+function startDropBot() {
+  const settings = db.getSettings();
+  const token = settings.dropBotToken;
+  if (!token) return;
+  try {
+    if (dropBot) { try { dropBot.stopPolling(); } catch(e) {} }
+    dropBot = new TelegramBot(token, { polling: { autoStart: false, interval: 2000 } });
+    dropBot.on('polling_error', (err) => console.error('Drop bot polling error:', err.message));
+    setTimeout(() => dropBot.startPolling(), 4000);
+
+    async function handleFile(msg, fileId, originalName, mimeType) {
+      try {
+        const filename = await downloadTgFile(token, dropBot, fileId);
+        const entry = {
+          id: 'DRP-' + Date.now().toString(36).toUpperCase(),
+          senderId: String(msg.from.id),
+          senderName: (msg.from.first_name + ' ' + (msg.from.last_name || '')).trim(),
+          senderUsername: msg.from.username || '',
+          description: msg.caption || '',
+          filename,
+          originalName: originalName || filename,
+          mimeType: mimeType || '',
+          date: new Date().toISOString(),
+          status: 'received'
+        };
+        db.addDropEntry(entry);
+        const price = (settings.dropPrices || {})[String(msg.from.id)] ?? settings.dropPriceDefault ?? 5;
+        await dropBot.sendMessage(msg.chat.id,
+          `✅ *Bordereau reçu !*\n\n📋 \`${entry.id}\`\n💰 Tarif drop : €${price}\n📝 ${entry.description || '_(sans description)_'}\n\nEnregistré dans le panel drop.`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch(e) {
+        console.error('Drop handleFile error:', e.message);
+        try { await dropBot.sendMessage(msg.chat.id, '❌ Erreur lors de la réception. Réessayez.'); } catch(e2) {}
+      }
+    }
+
+    dropBot.on('document', (msg) => {
+      const doc = msg.document;
+      handleFile(msg, doc.file_id, doc.file_name, doc.mime_type);
+    });
+    dropBot.on('photo', (msg) => {
+      const photo = msg.photo[msg.photo.length - 1];
+      handleFile(msg, photo.file_id, 'photo.jpg', 'image/jpeg');
+    });
+
+    dropBot.onText(/\/start/, (msg) => {
+      dropBot.sendMessage(msg.chat.id,
+        '📦 *Bot Drop actif*\n\nEnvoyez-moi un bordereau (PDF ou photo) pour l\'enregistrer dans le panel drop.',
+        { parse_mode: 'Markdown' }
+      );
+    });
+
+    console.log('📦 Drop bot démarré');
+  } catch(e) { console.error('Drop bot error:', e.message); }
+}
+
 startBot();
+startDropBot();
 
 function adminAuth(req, res, next) {
   if (req.headers['x-admin'] === db.getSettings().adminToken) return next();
@@ -596,6 +668,43 @@ app.post('/api/bordereau/modify', adminAuth, upload.single('pdf'), (req, res) =>
     }
     res.json({ ok: true });
   });
+});
+
+// ── DROP ENTRIES ──
+app.get('/api/drop/entries', (req, res) => res.json(db.getDropEntries()));
+
+app.put('/api/drop/entries/:id/drop', (req, res) => {
+  const entry = db.getDropEntryById(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  entry.status = 'dropped';
+  entry.droppedAt = new Date().toISOString();
+  db.updateDropEntry(entry);
+  res.json({ ok: true });
+});
+
+app.delete('/api/drop/entries/:id', (req, res) => {
+  const entry = db.getDropEntryById(req.params.id);
+  if (entry?.filename) {
+    try { fs.unlinkSync(path.join(__dirname, 'uploads', entry.filename)); } catch(e) {}
+  }
+  db.deleteDropEntry(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── DROP SETTINGS ──
+app.get('/api/drop/settings', (req, res) => {
+  const s = db.getSettings();
+  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {} });
+});
+
+app.put('/api/drop/settings', (req, res) => {
+  const update = {};
+  if (req.body.dropBotToken !== undefined) update.dropBotToken = req.body.dropBotToken;
+  if (req.body.dropPriceDefault !== undefined) update.dropPriceDefault = Number(req.body.dropPriceDefault) || 5;
+  if (req.body.dropPrices !== undefined) update.dropPrices = req.body.dropPrices;
+  db.updateSettings(update);
+  if (req.body.dropBotToken) setTimeout(startDropBot, 500);
+  res.json({ ok: true });
 });
 
 // ── ADMIN LOGIN ──
