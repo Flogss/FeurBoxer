@@ -392,6 +392,11 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
 /* ── Stats drop compactes ── */
 .drop-stat-grid .admin-stat-val{font-size:1.05rem;}
 .drop-stat-grid .admin-stat-card{padding:11px 14px;}
+/* ── Expéditeurs / règlements ── */
+.sender-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.sender-row:last-child{border-bottom:none;padding-bottom:0;}
+.sender-pay-btn{padding:5px 14px;background:rgba(57,255,20,0.08);border:1px solid var(--ng);color:var(--ng);border-radius:8px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.65rem;font-weight:700;white-space:nowrap;transition:.2s;}
+.sender-pay-btn:hover{background:rgba(57,255,20,0.18);}
 #crop-iframe{border:none;background:#fff;position:absolute;top:0;left:0;}
 .price-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
 .price-row:last-child{border-bottom:none;}
@@ -762,6 +767,8 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         </div>
       </div>
     </div>
+    <!-- Règlements par expéditeur -->
+    <div id="drop-sender-stats" style="display:none;margin-bottom:16px"></div>
     <!-- Actions -->
     <div class="drop-actions-bar">
       <div class="drop-act-row">
@@ -2255,9 +2262,57 @@ async function loadDropEntries(){
     updateDropStats();
     renderCarrierFilters();
     renderDropList();
+    renderSenderStats();
   }catch(e){
     if(list)list.innerHTML='<p style="color:var(--np);text-align:center;padding:40px">❌ Erreur de chargement</p>';
   }
+}
+
+function renderSenderStats(){
+  const el=document.getElementById('drop-sender-stats');
+  if(!el)return;
+  // Agréger par expéditeur
+  const map={};
+  dropEntries.forEach(e=>{
+    const id=e.senderId;
+    if(!map[id])map[id]={id,name:e.senderName,total:0,dropped:0,unpaidAmt:0,paidAmt:0};
+    const s=map[id];
+    const price=dropPrice(e);
+    s.total++;
+    if(e.status==='dropped'){
+      s.dropped++;
+      if(e.paid)s.paidAmt+=price;
+      else s.unpaidAmt+=price;
+    }
+  });
+  const list=Object.values(map);
+  if(!list.length){el.style.display='none';return;}
+  el.style.display='';
+  el.innerHTML=`<div class="glass-card" style="border-color:rgba(155,93,229,0.2)">
+    <div style="font-family:'Orbitron',sans-serif;font-size:.82rem;color:var(--nv);margin-bottom:10px;letter-spacing:1px">👥 RÈGLEMENTS EXPÉDITEURS</div>
+    ${list.map(s=>`
+    <div class="sender-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.78rem;color:var(--nb);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(s.name||'Inconnu')}</div>
+        <div style="font-size:.7rem;color:var(--dim);margin-top:2px">${s.total} bordereau(x) · ${s.dropped} droppé(s)${s.paidAmt>0?` · <span style="color:var(--ng)">€${s.paidAmt} payé</span>`:''}</div>
+      </div>
+      ${s.unpaidAmt>0?`
+        <span style="font-family:'Orbitron',sans-serif;font-size:.92rem;font-weight:700;color:var(--no);flex-shrink:0">€${s.unpaidAmt}</span>
+        <button class="sender-pay-btn" onclick="paySender('${escHTML(s.id)}','${escHTML(s.name)}',${s.unpaidAmt})">✓ PAYÉ</button>
+      `:`<span style="font-size:.72rem;color:var(--ng);flex-shrink:0">✅ Soldé</span>`}
+    </div>`).join('')}
+  </div>`;
+}
+
+async function paySender(senderId,senderName,amount){
+  if(!confirm(`Marquer €${amount} comme payé par ${senderName} ?`))return;
+  try{
+    await apiFetch('POST','/drop/pay-sender',{senderId});
+    dropEntries.filter(e=>e.senderId===senderId&&e.status==='dropped'&&!e.paid).forEach(e=>e.paid=true);
+    renderSenderStats();
+    updateDropStats();
+    showToast(`✅ Paiement de €${amount} enregistré pour ${senderName}`,'success');
+  }catch(e){showToast('❌ '+e.message,'error');}
 }
 
 function dropPrice(e){
@@ -2393,7 +2448,7 @@ async function markDropped(id){
     await apiFetch('PUT','/drop/entries/'+id+'/drop',{});
     const e=dropEntries.find(x=>x.id===id);
     if(e){e.status='dropped';e.droppedAt=new Date().toISOString();}
-    updateDropStats();renderDropList();
+    updateDropStats();renderDropList();renderSenderStats();
     showToast('✅ Colis marqué comme droppé','success');
   }catch(e){showToast('❌ '+e.message,'error');}
 }
@@ -2403,7 +2458,7 @@ async function deleteDrop(id){
   try{
     await apiFetch('DELETE','/drop/entries/'+id);
     dropEntries=dropEntries.filter(e=>e.id!==id);
-    updateDropStats();renderDropList();
+    updateDropStats();renderDropList();renderSenderStats();
     showToast('🗑 Bordereau supprimé','info');
   }catch(e){showToast('❌ '+e.message,'error');}
 }

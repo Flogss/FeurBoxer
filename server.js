@@ -221,7 +221,8 @@ function startDropBot() {
           mimeType: mimeType || '',
           date: new Date().toISOString(),
           status: 'received',
-          carrier: detectCarrier(caption) || null
+          carrier: detectCarrier(caption) || null,
+          paid: false
         };
         db.addDropEntry(entry);
 
@@ -766,6 +767,15 @@ app.delete('/api/drop/entries/:id', (req, res) => {
   }
   db.deleteDropEntry(req.params.id);
   res.json({ ok: true });
+});
+
+// ── DROP : PAIEMENT PAR EXPÉDITEUR ──
+app.post('/api/drop/pay-sender', (req, res) => {
+  const { senderId } = req.body;
+  if (!senderId) return res.status(400).json({ error: 'senderId requis' });
+  const unpaid = db.getDropEntries().filter(e => e.senderId === String(senderId) && e.status === 'dropped' && !e.paid);
+  unpaid.forEach(e => { e.paid = true; db.updateDropEntry(e); });
+  res.json({ ok: true, count: unpaid.length });
 });
 
 // ── DROP : FUSION POUR IMPRESSION ──
