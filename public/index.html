@@ -2493,7 +2493,6 @@ async function markDropped(id){
 }
 
 async function deleteDrop(id){
-  if(!confirm('Supprimer ce bordereau ?'))return;
   try{
     await apiFetch('DELETE','/drop/entries/'+id);
     dropEntries=dropEntries.filter(e=>e.id!==id);
