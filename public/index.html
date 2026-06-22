@@ -392,6 +392,9 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
 /* ── Stats drop compactes ── */
 .drop-stat-grid .admin-stat-val{font-size:1.05rem;}
 .drop-stat-grid .admin-stat-card{padding:11px 14px;}
+/* ── Cartes flaggées (scotch, lit…) ── */
+.drop-card.is-flagged{border-color:rgba(255,55,55,0.55)!important;box-shadow:0 0 18px rgba(255,55,55,0.12)!important;}
+.drop-flag-badge{padding:2px 9px;border-radius:10px;font-size:.63rem;font-family:'Share Tech Mono',monospace;font-weight:700;background:rgba(255,50,50,0.12);color:#ff5555;border:1px solid rgba(255,50,50,0.4);margin-left:4px;letter-spacing:.5px;}
 /* ── Expéditeurs / règlements ── */
 .sender-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
 .sender-row:last-child{border-bottom:none;padding-bottom:0;}
@@ -751,7 +754,7 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
       </div>
       <!-- Stats -->
       <div class="admin-grid drop-stat-grid" style="margin-bottom:16px">
-        <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--ng)" id="drop-stat-revenue">—</div><div class="admin-stat-label">Revenus totaux</div></div>
+        <div class="admin-stat-card"><div style="display:flex;align-items:center;gap:6px"><div class="admin-stat-val" style="color:var(--ng)" id="drop-stat-revenue">—</div><button onclick="openAddRevenue()" style="padding:2px 8px;background:rgba(57,255,20,0.1);border:1px solid var(--ng);color:var(--ng);border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;flex-shrink:0" title="Ajouter des revenus manuels">+</button></div><div class="admin-stat-label">Revenus totaux</div></div>
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--nb)" id="drop-stat-done">—</div><div class="admin-stat-label">Drops effectués</div></div>
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--no)" id="drop-stat-pending">—</div><div class="admin-stat-label">En attente</div></div>
         <div class="admin-stat-card"><div class="admin-stat-val" style="color:var(--nv)" id="drop-stat-today">—</div><div class="admin-stat-label">Reçus aujourd'hui</div></div>
@@ -773,6 +776,7 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
     <div class="drop-actions-bar">
       <div class="drop-act-row">
         <button id="drop-sel-all-btn" onclick="toggleSelectAllDrop()" style="padding:8px 14px;background:rgba(0,212,255,0.07);border:1px solid rgba(0,212,255,0.25);color:var(--nb);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem">☑ TOUT SÉLECTIONNER</button>
+        <button onclick="dropAllSelected()" style="padding:8px 14px;background:rgba(57,255,20,0.07);border:1px solid rgba(57,255,20,0.3);color:var(--ng);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem">📦 TOUT DROP</button>
         <button onclick="printSelectedDrop()" style="padding:8px 14px;background:rgba(155,93,229,0.07);border:1px solid rgba(155,93,229,0.25);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem">🖨 IMPRIMER SÉLECTION</button>
         <div style="flex:1"></div>
         <select id="drop-filter-sel" class="form-select" style="width:auto;padding:8px 12px;font-size:.82rem" onchange="renderDropList()">
@@ -1070,6 +1074,24 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
       <button class="btn-glow btn-primary" style="flex:1" onclick="printFromCrop()">🖨 IMPRIMER AVEC CE RECADRAGE</button>
       <button onclick="resetCrop()" style="padding:12px 18px;background:rgba(155,93,229,0.08);border:1px solid var(--nv);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700">↺ RESET</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL REVENUS MANUELS -->
+<div class="modal-overlay" id="modal-add-revenue">
+  <div class="modal" style="max-width:400px">
+    <button class="modal-close" onclick="closeModal('modal-add-revenue')">✕</button>
+    <div class="modal-title">💰 AJOUTER DES REVENUS</div>
+    <div class="modal-sub">Cash, virement, autre — s'ajoute aux revenus totaux</div>
+    <div class="form-group">
+      <label class="form-label">Montant (€)</label>
+      <input id="add-rev-amount" type="number" class="form-input" min="0" step="0.5" placeholder="ex: 50">
+    </div>
+    <div class="form-group" style="margin-bottom:18px">
+      <label class="form-label">Note (optionnel)</label>
+      <input id="add-rev-note" class="form-input" placeholder="ex: paiement cash Maestro">
+    </div>
+    <button class="btn-glow btn-primary" style="width:100%" onclick="saveAddRevenue()">✅ AJOUTER AUX REVENUS</button>
   </div>
 </div>
 
@@ -2250,7 +2272,9 @@ async function saveSettings(){
 }
 
 // ── DROP PANEL ──
-let dropEntries=[], dropSettings={dropPriceDefault:5,dropPrices:{}}, dropCropUrl='', dropCropName='', dropCarrierFilter='';
+let dropEntries=[], dropSettings={dropPriceDefault:5,dropPrices:{},dropManualRevenue:0}, dropCropUrl='', dropCropName='', dropCarrierFilter='';
+const FLAGGED_KW=['scotch','lit'];
+function isFlagged(desc){if(!desc)return false;const t=desc.toLowerCase();return FLAGGED_KW.some(k=>t.includes(k));}
 
 async function loadDropEntries(){
   const list=document.getElementById('drop-entries-list');
@@ -2324,7 +2348,7 @@ function updateDropStats(){
   const pending=dropEntries.filter(e=>e.status==='received');
   const today=new Date().toDateString();
   const todayAll=dropEntries.filter(e=>new Date(e.date).toDateString()===today);
-  const revenue=dropped.reduce((s,e)=>s+dropPrice(e),0);
+  const revenue=dropped.reduce((s,e)=>s+dropPrice(e),0)+(dropSettings.dropManualRevenue||0);
   const pendingRev=pending.reduce((s,e)=>s+dropPrice(e),0);
 
   // Semaine / mois
@@ -2419,13 +2443,16 @@ function renderDropList(){
     const carrierCol=e.carrier?(CARRIER_COLORS[e.carrier]||'#00d4ff'):null;
     const carrierBadge=e.carrier?`<span style="padding:2px 9px;border-radius:10px;font-size:.65rem;font-family:'Share Tech Mono',monospace;font-weight:700;border:1px solid ${carrierCol}66;color:${carrierCol};background:${carrierCol}18;margin-left:4px">${escHTML(e.carrier)}</span>`:'';
     const isDropped=e.status==='dropped';
+    const flagged=isFlagged(e.description);
+    const flagKw=flagged?FLAGGED_KW.find(k=>(e.description||'').toLowerCase().includes(k)):'';
+    const flagBadge=flagged?`<span class="drop-flag-badge">⚠️ ${flagKw.toUpperCase()}</span>`:'';
     const descHtml=e.description
       ?`<span id="drop-desc-text-${escHTML(e.id)}">${escHTML(e.description)}</span>`
       :`<span id="drop-desc-text-${escHTML(e.id)}" style="color:var(--dim);font-style:italic;font-size:.82rem">Aucune description</span>`;
-    return `<div class="drop-card${isDropped?' is-dropped':''}" id="dcard-${escHTML(e.id)}" style="animation-delay:${i*0.04}s">
-      <input type="checkbox" class="drop-card-check" value="${escHTML(e.id)}" onchange="updateDropSelUI()">
+    return `<div class="drop-card${isDropped?' is-dropped':''}${flagged?' is-flagged':''}" id="dcard-${escHTML(e.id)}" style="animation-delay:${i*0.04}s">
+      <input type="checkbox" class="drop-card-check" value="${escHTML(e.id)}" data-flagged="${flagged}" onchange="updateDropSelUI()">
       <div class="drop-card-body">
-        <div style="margin-bottom:4px">${badge}${carrierBadge}<span class="drop-price-chip">€${price}/drop</span></div>
+        <div style="margin-bottom:4px">${badge}${carrierBadge}${flagBadge}<span class="drop-price-chip">€${price}/drop</span></div>
         <div class="drop-sender">👤 ${escHTML(e.senderName||'Inconnu')}</div>
         <div class="drop-desc" id="drop-desc-${escHTML(e.id)}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${descHtml}
@@ -2590,8 +2617,13 @@ function printFromCrop(){
 
 // Multi-select
 function toggleSelectAllDrop(){
-  const cbs=document.querySelectorAll('.drop-card-check');
-  const allChecked=[...cbs].every(c=>c.checked);
+  // Sélectionne uniquement les "reçus" non-flaggés
+  const cbs=[...document.querySelectorAll('.drop-card-check')].filter(c=>{
+    if(c.dataset.flagged==='true')return false;
+    const e=dropEntries.find(x=>x.id===c.value);
+    return e&&e.status==='received';
+  });
+  const allChecked=cbs.length>0&&cbs.every(c=>c.checked);
   cbs.forEach(c=>c.checked=!allChecked);
   updateDropSelUI();
 }
@@ -2599,6 +2631,42 @@ function updateDropSelUI(){
   const n=document.querySelectorAll('.drop-card-check:checked').length;
   const btn=document.getElementById('drop-sel-all-btn');
   if(btn)btn.textContent=n>0?`☑ ${n} SÉLECTIONNÉ(S)`:'☑ TOUT SÉLECTIONNER';
+}
+async function dropAllSelected(){
+  const checked=[...document.querySelectorAll('.drop-card-check:checked')];
+  if(!checked.length){showToast('⚠️ Sélectionnez des bordereaux d\'abord','error');return;}
+  const ids=checked.map(c=>c.value).filter(id=>{
+    const e=dropEntries.find(x=>x.id===id);
+    return e&&e.status==='received';
+  });
+  if(!ids.length){showToast('⚠️ Aucun bordereau "en attente" sélectionné','error');return;}
+  if(!confirm(`Marquer ${ids.length} bordereau(x) comme droppé(s) ?`))return;
+  try{
+    await apiFetch('POST','/drop/bulk-drop',{ids});
+    ids.forEach(id=>{
+      const e=dropEntries.find(x=>x.id===id);
+      if(e){e.status='dropped';e.droppedAt=new Date().toISOString();}
+    });
+    updateDropStats();renderDropList();renderSenderStats();
+    showToast(`✅ ${ids.length} bordereau(x) droppé(s)`,'success');
+  }catch(e){showToast('❌ '+e.message,'error');}
+}
+function openAddRevenue(){
+  document.getElementById('add-rev-amount').value='';
+  document.getElementById('add-rev-note').value='';
+  openModal('modal-add-revenue');
+}
+async function saveAddRevenue(){
+  const amount=parseFloat(document.getElementById('add-rev-amount').value)||0;
+  if(amount<=0){showToast('⚠️ Montant invalide','error');return;}
+  const newTotal=(dropSettings.dropManualRevenue||0)+amount;
+  try{
+    await apiFetch('PUT','/drop/settings',{dropManualRevenue:newTotal});
+    dropSettings.dropManualRevenue=newTotal;
+    updateDropStats();
+    closeModal('modal-add-revenue');
+    showToast(`✅ €${amount} ajouté aux revenus`,'success');
+  }catch(e){showToast('❌ '+e.message,'error');}
 }
 async function printSelectedDrop(){
   const checked=[...document.querySelectorAll('.drop-card-check:checked')];

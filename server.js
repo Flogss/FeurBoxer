@@ -812,7 +812,7 @@ app.post('/api/drop/print', (req, res) => {
 // ── DROP SETTINGS ──
 app.get('/api/drop/settings', (req, res) => {
   const s = db.getSettings();
-  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {}, dropNotifyUid: s.dropNotifyUid || '' });
+  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {}, dropNotifyUid: s.dropNotifyUid || '', dropManualRevenue: s.dropManualRevenue || 0 });
 });
 
 app.put('/api/drop/settings', (req, res) => {
@@ -821,9 +821,26 @@ app.put('/api/drop/settings', (req, res) => {
   if (req.body.dropPriceDefault !== undefined) update.dropPriceDefault = Number(req.body.dropPriceDefault) || 5;
   if (req.body.dropPrices !== undefined) update.dropPrices = req.body.dropPrices;
   if (req.body.dropNotifyUid !== undefined) update.dropNotifyUid = String(req.body.dropNotifyUid).trim();
+  if (req.body.dropManualRevenue !== undefined) update.dropManualRevenue = Number(req.body.dropManualRevenue) || 0;
   db.updateSettings(update);
   if (req.body.dropBotToken) setTimeout(startDropBot, 500);
   res.json({ ok: true });
+});
+
+// ── DROP : BULK MARK DROPPED ──
+app.post('/api/drop/bulk-drop', (req, res) => {
+  const ids = req.body.ids || [];
+  let count = 0;
+  ids.forEach(id => {
+    const e = db.getDropEntryById(id);
+    if (e && e.status === 'received') {
+      e.status = 'dropped';
+      e.droppedAt = new Date().toISOString();
+      db.updateDropEntry(e);
+      count++;
+    }
+  });
+  res.json({ ok: true, count });
 });
 
 // ── ADMIN LOGIN ──

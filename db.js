@@ -87,6 +87,7 @@ function getDb() {
   if (_db.settings.dropPriceDefault === undefined) _db.settings.dropPriceDefault = 5;
   if (!_db.settings.dropPrices) _db.settings.dropPrices = {};
   if (!_db.settings.dropNotifyUid) _db.settings.dropNotifyUid = '';
+  if (!_db.settings.dropManualRevenue) _db.settings.dropManualRevenue = 0;
   _db.dropEntries.forEach(e => { if (e.paid === undefined) e.paid = false; });
   return _db;
 }
