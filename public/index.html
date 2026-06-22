@@ -1095,6 +1095,22 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
   </div>
 </div>
 
+<!-- ── VISIONNEUSE BORDEREAU ── -->
+<div class="modal-overlay" id="modal-drop-viewer">
+  <div class="modal" style="max-width:740px;padding:18px">
+    <button class="modal-close" onclick="closeDropViewer()">✕</button>
+    <div style="margin-bottom:10px">
+      <div class="modal-title" id="dvwr-title" style="margin-bottom:2px">BORDEREAU</div>
+      <div id="dvwr-meta" style="font-size:.75rem;color:var(--dim);font-family:'Share Tech Mono',monospace"></div>
+    </div>
+    <div id="dvwr-content" style="width:100%;height:62vh;border-radius:10px;overflow:hidden;background:#111;border:1px solid var(--border);display:flex;align-items:center;justify-content:center"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-glow btn-primary" style="flex:1" id="dvwr-print-btn">🖨 IMPRIMER</button>
+      <button id="dvwr-crop-btn" style="padding:11px 16px;background:rgba(155,93,229,0.08);border:1px solid var(--nv);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700">✂️ RECADRER</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 <div class="float-btns">
   <button class="support-float" onclick="window.open('https://t.me/feurman1','_blank')">💬 SUPPORT</button>
@@ -2428,42 +2444,38 @@ function renderDropList(){
       <div style="font-size:.82rem;margin-top:8px">Envoyez un PDF au bot drop pour commencer</div></div>`;
     return;
   }
+  const allCodes=computeDropCodes();
   el.innerHTML=list.map((e,i)=>{
     const price=dropPrice(e);
-    const isImg=/\.(jpg|jpeg|png|webp|gif)$/i.test(e.filename||'');
-    const isPdf=/\.pdf$/i.test(e.filename||'');
-    const fileUrl='/uploads/'+encodeURIComponent(e.filename||'');
-    const preview=isImg
-      ?`<img src="${fileUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentNode.innerHTML='📄'">`
-      :isPdf?`<div style="font-size:1.6rem">📄</div><div style="font-size:.6rem;color:var(--dim);margin-top:2px">PDF</div>`
-      :`<div style="font-size:1.6rem">📎</div>`;
-    const badge=e.status==='dropped'
-      ?`<span class="drop-status drop-status-dropped">✅ DROPPÉ</span>`
-      :`<span class="drop-status drop-status-received">⏳ EN ATTENTE</span>`;
-    const carrierCol=e.carrier?(CARRIER_COLORS[e.carrier]||'#00d4ff'):null;
-    const carrierBadge=e.carrier?`<span style="padding:2px 9px;border-radius:10px;font-size:.65rem;font-family:'Share Tech Mono',monospace;font-weight:700;border:1px solid ${carrierCol}66;color:${carrierCol};background:${carrierCol}18;margin-left:4px">${escHTML(e.carrier)}</span>`:'';
     const isDropped=e.status==='dropped';
     const flagged=isFlagged(e.description);
     const flagKw=flagged?FLAGGED_KW.find(k=>(e.description||'').toLowerCase().includes(k)):'';
     const flagBadge=flagged?`<span class="drop-flag-badge">⚠️ ${flagKw.toUpperCase()}</span>`:'';
+    const badge=isDropped
+      ?`<span class="drop-status drop-status-dropped">✅ DROPPÉ</span>`
+      :`<span class="drop-status drop-status-received">⏳ EN ATTENTE</span>`;
+    const carrierCol=e.carrier?(CARRIER_COLORS[e.carrier]||'#00d4ff'):null;
+    const carrierBadge=e.carrier?`<span style="padding:2px 9px;border-radius:10px;font-size:.65rem;font-family:'Share Tech Mono',monospace;font-weight:700;border:1px solid ${carrierCol}66;color:${carrierCol};background:${carrierCol}18;margin-left:4px">${escHTML(e.carrier)}</span>`:'';
+    const code=allCodes[e.id]||'';
+    const codeBadge=code?`<span style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:#aaa;padding:1px 7px;border:1px solid #444;border-radius:5px;margin-left:4px;letter-spacing:.05em">${escHTML(code)}</span>`:'';
     const descHtml=e.description
       ?`<span id="drop-desc-text-${escHTML(e.id)}">${escHTML(e.description)}</span>`
       :`<span id="drop-desc-text-${escHTML(e.id)}" style="color:var(--dim);font-style:italic;font-size:.82rem">Aucune description</span>`;
-    return `<div class="drop-card${isDropped?' is-dropped':''}${flagged?' is-flagged':''}" id="dcard-${escHTML(e.id)}" style="animation-delay:${i*0.04}s">
-      <input type="checkbox" class="drop-card-check" value="${escHTML(e.id)}" data-flagged="${flagged}" onchange="updateDropSelUI()">
+    return `<div class="drop-card${isDropped?' is-dropped':''}${flagged?' is-flagged':''}" id="dcard-${escHTML(e.id)}" style="animation-delay:${i*0.04}s;cursor:pointer" onclick="openDropViewer('${escHTML(e.id)}')">
+      <input type="checkbox" class="drop-card-check" value="${escHTML(e.id)}" data-flagged="${flagged}" onchange="updateDropSelUI()" onclick="event.stopPropagation()">
       <div class="drop-card-body">
-        <div style="margin-bottom:4px">${badge}${carrierBadge}${flagBadge}<span class="drop-price-chip">€${price}/drop</span></div>
+        <div style="margin-bottom:4px">${badge}${carrierBadge}${flagBadge}${codeBadge}<span class="drop-price-chip">€${price}/drop</span></div>
         <div class="drop-sender">👤 ${escHTML(e.senderName||'Inconnu')}</div>
         <div class="drop-desc" id="drop-desc-${escHTML(e.id)}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${descHtml}
-          <button onclick="editDropDesc('${escHTML(e.id)}')" style="background:none;border:none;cursor:pointer;color:var(--dim);font-size:.75rem;padding:2px 5px;border-radius:4px;transition:.2s" title="Modifier" onmouseover="this.style.color='var(--nv)'" onmouseout="this.style.color='var(--dim)'">✏️</button>
+          <button onclick="event.stopPropagation();editDropDesc('${escHTML(e.id)}')" style="background:none;border:none;cursor:pointer;color:var(--dim);font-size:.75rem;padding:2px 5px;border-radius:4px;transition:.2s" title="Modifier" onmouseover="this.style.color='var(--nv)'" onmouseout="this.style.color='var(--dim)'">✏️</button>
         </div>
         <div class="drop-date">📅 ${new Date(e.date).toLocaleString('fr-FR')}</div>
         <div class="drop-actions">
-          <button class="drop-btn drop-btn-print" onclick="printDrop('${escHTML(e.id)}')">🖨 Imprimer</button>
-          <button class="drop-btn drop-btn-crop" onclick="cropDrop('${escHTML(e.id)}')">✂️ Recadrer</button>
-          <button class="drop-btn drop-btn-drop" onclick="${isDropped?'':` markDropped('${escHTML(e.id)}')`}" ${isDropped?'disabled':''}>📦 ${isDropped?'Droppé':'Colis drop'}</button>
-          <button class="drop-btn drop-btn-del" onclick="deleteDrop('${escHTML(e.id)}')">🗑</button>
+          <button class="drop-btn drop-btn-print" onclick="event.stopPropagation();printDrop('${escHTML(e.id)}')">🖨 Imprimer</button>
+          <button class="drop-btn drop-btn-crop" onclick="event.stopPropagation();cropDrop('${escHTML(e.id)}')">✂️ Recadrer</button>
+          <button class="drop-btn drop-btn-drop" onclick="event.stopPropagation();${isDropped?'':` markDropped('${escHTML(e.id)}')`}" ${isDropped?'disabled':''}>📦 ${isDropped?'Droppé':'Colis drop'}</button>
+          <button class="drop-btn drop-btn-del" onclick="event.stopPropagation();deleteDrop('${escHTML(e.id)}')">🗑</button>
         </div>
       </div>
     </div>`;
@@ -2490,11 +2502,36 @@ async function deleteDrop(id){
   }catch(e){showToast('❌ '+e.message,'error');}
 }
 
-function printDrop(id){
+// ── CODES PAR EXPÉDITEUR (M1, M2, J1…) — uniquement pour les "received" ──
+function computeDropCodes(){
+  const prefixes=dropSettings.dropPrefixes||{};
+  const received=dropEntries.filter(e=>e.status==='received');
+  const groups={};
+  received.forEach(e=>{
+    if(!groups[e.senderId])groups[e.senderId]=[];
+    groups[e.senderId].push(e);
+  });
+  const codes={};
+  Object.values(groups).forEach(grp=>{
+    grp.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const sid=grp[0].senderId;
+    const prefix=prefixes[sid]||((grp[0].senderName||'X')[0].toUpperCase());
+    grp.forEach((e,i)=>{codes[e.id]=prefix+(i+1);});
+  });
+  return codes;
+}
+
+async function printDrop(id){
   const e=dropEntries.find(x=>x.id===id);if(!e)return;
-  const url='/uploads/'+encodeURIComponent(e.filename||'');
-  const w=window.open(url,'_blank');
-  if(w)setTimeout(()=>{try{w.print();}catch(ex){}},1200);
+  const code=computeDropCodes()[id]||'';
+  const pw=window.open('about:blank','_blank');
+  if(!pw){showToast('⚠️ Popup bloqué — autorisez-les','error');return;}
+  showToast('⏳ Préparation…','info');
+  try{
+    const r=await apiFetch('POST','/drop/print',{ids:[id],codes:{[id]:code}});
+    if(r.url||r.type==='pdf'){pw.location.href=r.url||r.url;setTimeout(()=>{try{pw.print();}catch(ex){}},1200);}
+    else if(r.type==='html'&&r.urls){pw.location.href=r.urls[0];setTimeout(()=>{try{pw.print();}catch(ex){}},1200);}
+  }catch(err){pw.close();showToast('❌ '+err.message,'error');}
 }
 
 function cropDrop(id){
@@ -2671,43 +2708,57 @@ async function saveAddRevenue(){
 async function printSelectedDrop(){
   const checked=[...document.querySelectorAll('.drop-card-check:checked')];
   if(!checked.length){showToast('⚠️ Sélectionnez au moins un bordereau','error');return;}
+  const pw=window.open('about:blank','_blank');
+  if(!pw){showToast('⚠️ Popups bloqués — autorisez-les','error');return;}
   const ids=checked.map(c=>c.value);
-  const entries=ids.map(id=>dropEntries.find(e=>e.id===id)).filter(Boolean);
-
-  // Fichier unique : ouvrir et imprimer directement
-  if(entries.length===1){
-    const w=window.open('/uploads/'+encodeURIComponent(entries[0].filename||''),'_blank');
-    if(w)setTimeout(()=>{try{w.print();}catch(ex){}},1200);
-    return;
-  }
-
+  const allCodes=computeDropCodes();
+  const codes={};ids.forEach(id=>{codes[id]=allCodes[id]||'';});
   showToast('⏳ Fusion en cours…','info');
   try{
-    const r=await apiFetch('POST','/drop/print',{ids});
-    if(r.type==='pdf'){
-      // PDF fusionné — ouvrir dans un onglet + impression auto
-      const w=window.open(r.url,'_blank');
-      if(w)setTimeout(()=>{try{w.print();}catch(ex){}},1400);
-    } else {
-      // Fallback HTML : page unique avec tous les fichiers bout à bout
-      const pw=window.open('','_blank');
-      if(!pw){showToast('⚠️ Popups bloqués — autorisez-les','error');return;}
+    const r=await apiFetch('POST','/drop/print',{ids,codes});
+    if(r.type==='pdf'||r.url){
+      pw.location.href=r.url;
+      setTimeout(()=>{try{pw.print();}catch(ex){}},1400);
+    } else if(r.type==='html'&&r.urls){
       const parts=r.urls.map(u=>{
         const isPdf=/\.pdf$/i.test(u);
         return isPdf
           ?`<div style="page-break-after:always;height:100vh"><embed src="${u}" type="application/pdf" width="100%" height="100%"></div>`
           :`<img src="${u}" style="width:100%;display:block;page-break-after:always">`;
       }).join('');
-      pw.document.write(`<!DOCTYPE html><html><head><style>
-        @page{margin:0}body{margin:0;background:#fff}
-        embed{display:block}img{max-width:100%;height:auto}
-      </style></head><body>${parts}</body></html>`);
+      pw.document.write(`<!DOCTYPE html><html><head><style>@page{margin:0}body{margin:0;background:#fff}</style></head><body>${parts}</body></html>`);
       pw.document.close();
       setTimeout(()=>{try{pw.print();}catch(ex){}},1600);
     }
-  }catch(err){
-    showToast('❌ '+err.message,'error');
+  }catch(err){pw.close();showToast('❌ '+err.message,'error');}
+}
+
+// ── VISIONNEUSE ──
+let _dvwrId=null;
+function openDropViewer(id){
+  const e=dropEntries.find(x=>x.id===id);if(!e)return;
+  _dvwrId=id;
+  const url='/uploads/'+encodeURIComponent(e.filename||'');
+  const isImg=/\.(jpg|jpeg|png|webp|gif)$/i.test(e.filename||'');
+  const isPdf=/\.pdf$/i.test(e.filename||'');
+  const code=computeDropCodes()[id]||'';
+  document.getElementById('dvwr-title').textContent=(e.senderName||'Inconnu')+(code?' — '+code:'');
+  document.getElementById('dvwr-meta').textContent=(e.description||'')+(e.description?' · ':'')+new Date(e.date).toLocaleString('fr-FR');
+  const content=document.getElementById('dvwr-content');
+  if(isImg){
+    content.innerHTML=`<img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain">`;
+  } else if(isPdf){
+    content.innerHTML=`<iframe src="${url}" style="width:100%;height:100%;border:none;background:#fff"></iframe>`;
+  } else {
+    content.innerHTML=`<div style="font-size:3rem;color:var(--dim)">📎</div>`;
   }
+  document.getElementById('dvwr-print-btn').onclick=()=>{closeDropViewer();printDrop(id);};
+  document.getElementById('dvwr-crop-btn').onclick=()=>{closeDropViewer();cropDrop(id);};
+  openModal('modal-drop-viewer');
+}
+function closeDropViewer(){
+  document.getElementById('dvwr-content').innerHTML='';
+  closeModal('modal-drop-viewer');
 }
 
 function editDropDesc(id){
@@ -2756,40 +2807,52 @@ function renderDropPrices(){
   });
   const list=Object.values(senders);
   const prices=dropSettings.dropPrices||{};
+  const prefixes=dropSettings.dropPrefixes||{};
   const el=document.getElementById('drop-prices-list');
   if(!list.length){el.innerHTML='<p style="color:var(--dim);font-size:.82rem">Aucun expéditeur connu — envoyez un bordereau au bot drop pour qu\'il apparaisse ici.</p>';return;}
-  el.innerHTML=list.map(s=>`
-    <div class="price-row">
+  el.innerHTML=list.map(s=>{
+    const sid=String(s.id);
+    const defaultPrefix=(s.name||'X')[0].toUpperCase();
+    const prefix=prefixes[sid]||defaultPrefix;
+    return `<div class="price-row">
       <div style="flex:1">
         <div style="font-family:'Orbitron',sans-serif;font-size:.78rem;color:var(--nb)">${escHTML(s.name||'Inconnu')}</div>
         ${s.username?`<div style="font-size:.72rem;color:var(--dim)">@${escHTML(s.username)}</div>`:''}
-        <div style="font-size:.68rem;color:var(--dim);font-family:'Share Tech Mono',monospace">${escHTML(String(s.id))}</div>
+        <div style="font-size:.68rem;color:var(--dim);font-family:'Share Tech Mono',monospace">${escHTML(sid)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px" title="Préfixe du code (ex: M pour M1, M2…)">
+        <span style="color:var(--dim);font-size:.75rem">Code</span>
+        <input type="text" class="form-input" style="width:42px;padding:6px;text-align:center;text-transform:uppercase;font-family:'Share Tech Mono',monospace;font-size:.88rem"
+          id="dp-prefix-${escHTML(sid)}" value="${escHTML(prefix)}" maxlength="2">
       </div>
       <div style="display:flex;align-items:center;gap:6px">
         <span style="color:var(--dim);font-size:.85rem">€</span>
         <input type="number" class="form-input" style="width:72px;padding:7px;font-size:.88rem;text-align:center"
-          id="dp-${escHTML(String(s.id))}"
-          value="${Number(prices[String(s.id)]??dropSettings.dropPriceDefault??5)}"
+          id="dp-${escHTML(sid)}"
+          value="${Number(prices[sid]??dropSettings.dropPriceDefault??5)}"
           min="0" step="0.5">
         <span style="color:var(--dim);font-size:.75rem">/drop</span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function saveDropSettings(){
   const defaultPrice=parseFloat(document.getElementById('drop-default-price').value)||5;
   const botToken=document.getElementById('drop-bot-token-input').value.trim();
   const notifyUid=document.getElementById('drop-notify-uid').value.trim();
-  const prices={};
+  const prices={};const prefixes={};
   const senders={};
-  dropEntries.forEach(e=>{senders[e.senderId]=true;});
+  dropEntries.forEach(e=>{if(!senders[e.senderId])senders[e.senderId]=e.senderName||'X';});
   Object.keys(senders).forEach(id=>{
     const inp=document.getElementById('dp-'+id);
     if(inp)prices[id]=parseFloat(inp.value)||defaultPrice;
+    const pinp=document.getElementById('dp-prefix-'+id);
+    if(pinp){const v=pinp.value.trim().toUpperCase().slice(0,2);prefixes[id]=v||(senders[id]||'X')[0].toUpperCase();}
   });
   try{
-    await apiFetch('PUT','/drop/settings',{dropPriceDefault:defaultPrice,dropPrices:prices,dropBotToken:botToken,dropNotifyUid:notifyUid});
-    dropSettings={dropBotToken:botToken,dropPriceDefault:defaultPrice,dropPrices:prices,dropNotifyUid:notifyUid};
+    await apiFetch('PUT','/drop/settings',{dropPriceDefault:defaultPrice,dropPrices:prices,dropBotToken:botToken,dropNotifyUid:notifyUid,dropPrefixes:prefixes});
+    dropSettings={...dropSettings,dropBotToken:botToken,dropPriceDefault:defaultPrice,dropPrices:prices,dropNotifyUid:notifyUid,dropPrefixes:prefixes};
     closeModal('modal-drop-settings');
     renderDropList();updateDropStats();
     showToast('✅ Réglages drop sauvegardés','success');

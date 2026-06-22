@@ -780,25 +780,26 @@ app.post('/api/drop/pay-sender', (req, res) => {
 
 // ── DROP : FUSION POUR IMPRESSION ──
 app.post('/api/drop/print', (req, res) => {
-  const ids = req.body.ids;
+  const ids   = req.body.ids;
+  const codes = req.body.codes || {}; // { entryId: 'M1', ... }
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids requis' });
 
   const entries = ids.map(id => db.getDropEntryById(id)).filter(Boolean);
   const files   = entries.map(e => path.join(__dirname, 'uploads', e.filename)).filter(f => fs.existsSync(f));
   if (!files.length) return res.status(404).json({ error: 'Fichiers introuvables' });
 
-  const allPdf = files.every(f => /\.pdf$/i.test(f));
-  if (!allPdf) {
-    // Renvoyer les URLs pour impression HTML côté client
-    return res.json({ type: 'html', urls: files.map(f => '/uploads/' + path.basename(f)) });
-  }
+  // Codes mappés par chemin de fichier (pour merge_pdfs.py)
+  const fileCodes = {};
+  entries.forEach(e => {
+    const code = codes[e.id] || '';
+    if (code) fileCodes[path.join(__dirname, 'uploads', e.filename)] = code;
+  });
 
   const outFile = path.join(__dirname, 'uploads', 'merged-' + Date.now() + '.pdf');
   const script  = path.join(__dirname, 'bordereau', 'merge_pdfs.py');
-  execFile(PYTHON, [script, JSON.stringify(files), outFile], { timeout: 30000 }, (err, stdout) => {
+  execFile(PYTHON, [script, JSON.stringify(files), outFile, JSON.stringify(fileCodes)], { timeout: 30000 }, (err, stdout) => {
     if (err) {
       console.error('Merge error:', err.message);
-      // Fallback : URLs individuelles
       return res.json({ type: 'html', urls: files.map(f => '/uploads/' + path.basename(f)) });
     }
     try {
@@ -812,7 +813,7 @@ app.post('/api/drop/print', (req, res) => {
 // ── DROP SETTINGS ──
 app.get('/api/drop/settings', (req, res) => {
   const s = db.getSettings();
-  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {}, dropNotifyUid: s.dropNotifyUid || '', dropManualRevenue: s.dropManualRevenue || 0 });
+  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {}, dropNotifyUid: s.dropNotifyUid || '', dropManualRevenue: s.dropManualRevenue || 0, dropPrefixes: s.dropPrefixes || {} });
 });
 
 app.put('/api/drop/settings', (req, res) => {
@@ -822,6 +823,7 @@ app.put('/api/drop/settings', (req, res) => {
   if (req.body.dropPrices !== undefined) update.dropPrices = req.body.dropPrices;
   if (req.body.dropNotifyUid !== undefined) update.dropNotifyUid = String(req.body.dropNotifyUid).trim();
   if (req.body.dropManualRevenue !== undefined) update.dropManualRevenue = Number(req.body.dropManualRevenue) || 0;
+  if (req.body.dropPrefixes !== undefined) update.dropPrefixes = req.body.dropPrefixes;
   db.updateSettings(update);
   if (req.body.dropBotToken) setTimeout(startDropBot, 500);
   res.json({ ok: true });

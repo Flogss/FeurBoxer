@@ -4,6 +4,8 @@ import sys, json, os
 
 files = json.loads(sys.argv[1])
 out   = sys.argv[2]
+# codes: dict {filepath: code_string} optionnel
+codes = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
 
 A4_W, A4_H = 595.28, 841.89
 MARGIN = 14  # ~5mm de marge
@@ -17,6 +19,7 @@ try:
         if not os.path.exists(fn):
             continue
         try:
+            page_before = dst.page_count
             src = fitz.open(fn)
             for pno in range(src.page_count):
                 page = src[pno]
@@ -32,6 +35,15 @@ try:
                 new_page = dst.new_page(-1, width=A4_W, height=A4_H)
                 new_page.show_pdf_page(fitz.Rect(x0, y0, x0 + sw, y0 + sh), src, pno)
             src.close()
+            # Ajoute le code d'identification sur la dernière page ajoutée
+            code = codes.get(fn, '')
+            if code and dst.page_count > page_before:
+                last = dst[dst.page_count - 1]
+                r = last.rect
+                tw = fitz.get_text_length(code, fontsize=9)
+                px = r.width - tw - 8
+                py = r.height - 8
+                last.insert_text(fitz.Point(px, py), code, fontsize=9, color=(0.55, 0.55, 0.55))
         except Exception as e:
             sys.stderr.write(f"Erreur {fn}: {e}\n")
 
