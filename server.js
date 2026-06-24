@@ -218,6 +218,18 @@ function startDropBot() {
       if (final) {
         const lines = Object.entries(p.senders).map(([n, c]) => `  • *${n}* : ${c} bdx`).join('\n');
         text = `✅ *${p.done}/${p.total} bordereau(x) enregistré(s)*\n\n\`${bar}\`  ${processed}/${p.total}\n\n${lines}${p.errors ? `\n\n⚠️ ${p.errors} erreur(s)` : ''}`;
+        // Résumé unique vers le destinataire de notifications
+        if (p.notif) {
+          const cfg = db.getSettings();
+          if (cfg.dropNotifyUid) {
+            const pending = db.getDropEntries().filter(e => e.status === 'received').length;
+            const nlines = Object.entries(p.notif.senders).map(([n, c]) => `  • *${n}* : ${c} bdx`).join('\n');
+            dropBot.sendMessage(cfg.dropNotifyUid,
+              `📦 *${p.done} nouveau(x) bordereau(x) reçu(s)*\n\n${nlines}\n\n📊 Total en attente : *${pending}*`,
+              { parse_mode: 'Markdown' }
+            ).catch(() => {});
+          }
+        }
         delete _chatProg[chatId];
         delete _progLock[chatId];
       } else {
@@ -319,17 +331,13 @@ function startDropBot() {
           });
         }
 
-        // Notification admin (une par fichier — silencieuse, ne pollue pas le chat sender)
-        const cfg = db.getSettings();
-        if (cfg.dropNotifyUid) {
-          const pending = db.getDropEntries().filter(e => e.status === 'received').length;
-          dropBot.sendMessage(cfg.dropNotifyUid,
-            `📦 *Nouveau bordereau*\n👤 ${senderName}\n📝 ${caption || '_(sans desc)_'}\n💰 €${(cfg.dropPrices||{})[senderId]??cfg.dropPriceDefault??5}/drop${entry.carrier?'\n🚚 '+entry.carrier:''}\n📊 En attente : *${pending}*`,
-            { parse_mode: 'Markdown' }
-          ).catch(() => {});
+        // Accumule pour le résumé de fin de lot
+        if (p) {
+          p.done++;
+          p.senders[senderName] = (p.senders[senderName] || 0) + 1;
+          if (!p.notif) p.notif = { senders: {} };
+          p.notif.senders[senderName] = (p.notif.senders[senderName] || 0) + 1;
         }
-
-        if (p) { p.done++; p.senders[senderName] = (p.senders[senderName] || 0) + 1; }
       } catch(e) {
         console.error('Drop handleFile error:', e.message);
         if (p) p.errors++;
@@ -344,6 +352,21 @@ function startDropBot() {
     dropBot.on('photo', (msg) => {
       const photo = msg.photo[msg.photo.length - 1];
       enqueueFile(msg, photo.file_id, 'photo.jpg', 'image/jpeg');
+    });
+
+    // ── /scotchall — marque tous les bordereaux reçus de ce chat comme SCOTCH ──
+    dropBot.onText(/^\/scotchall$/i, (msg) => {
+      const chatId = String(msg.chat.id);
+      const received = db.getDropEntries().filter(e => e.status === 'received' && e.tgChatId === chatId);
+      let count = 0;
+      received.forEach(e => {
+        if (!(e.description || '').toLowerCase().includes('scotch')) {
+          e.description = e.description ? e.description + ' scotch' : 'scotch';
+          db.updateDropEntry(e);
+          count++;
+        }
+      });
+      dropBot.sendMessage(chatId, `⚠️ *${count} bordereau(x) marqué(s) SCOTCH*`, { parse_mode: 'Markdown' }).catch(() => {});
     });
 
     // ── /scotch [N] — reply à un fichier OU numéro dans la liste reçue ──

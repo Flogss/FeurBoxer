@@ -779,11 +779,8 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         <button onclick="dropAllSelected()" style="padding:8px 14px;background:rgba(57,255,20,0.07);border:1px solid rgba(57,255,20,0.3);color:var(--ng);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem">📦 TOUT DROP</button>
         <button onclick="printSelectedDrop()" style="padding:8px 14px;background:rgba(155,93,229,0.07);border:1px solid rgba(155,93,229,0.25);color:var(--nv);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem">🖨 IMPRIMER SÉLECTION</button>
         <div style="flex:1"></div>
-        <select id="drop-filter-sel" class="form-select" style="width:auto;padding:8px 12px;font-size:.82rem" onchange="renderDropList()">
-          <option value="">Tous statuts</option>
-          <option value="received">En attente</option>
-          <option value="dropped">Droppés</option>
-        </select>
+        <button id="drop-sort-btn" onclick="toggleDropSort()" style="padding:8px 12px;background:transparent;border:1px solid var(--border);color:var(--dim);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem">📅 ANCIEN → RÉCENT</button>
+        <button id="drop-hist-btn" onclick="toggleDropHistory()" style="padding:8px 12px;background:transparent;border:1px solid var(--border);color:var(--dim);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem">📂 ANCIENS COLIS</button>
       </div>
       <!-- Filtre transporteurs -->
       <div id="drop-carrier-filters" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
@@ -2289,6 +2286,8 @@ async function saveSettings(){
 
 // ── DROP PANEL ──
 let dropEntries=[], dropSettings={dropPriceDefault:5,dropPrices:{},dropManualRevenue:0}, dropCropUrl='', dropCropName='', dropCarrierFilter='';
+let dropSortDesc=false;   // false=ancien→récent (défaut), true=récent→ancien
+let dropShowDropped=false; // masque les droppés par défaut
 const FLAGGED_KW=['scotch','lit'];
 function isFlagged(desc){if(!desc)return false;const t=desc.toLowerCase();return FLAGGED_KW.some(k=>t.includes(k));}
 
@@ -2427,19 +2426,40 @@ function renderCarrierFilters(){
 
 function setCarrierFilter(c){dropCarrierFilter=c;renderCarrierFilters();renderDropList();}
 
+function _seq(e){if(typeof e.seq==='number')return e.seq;const m=(e.id||'').match(/-(\d+)$/);return m?parseInt(m[1]):0;}
+
+function toggleDropSort(){
+  dropSortDesc=!dropSortDesc;
+  const btn=document.getElementById('drop-sort-btn');
+  if(btn)btn.textContent=dropSortDesc?'📅 RÉCENT → ANCIEN':'📅 ANCIEN → RÉCENT';
+  renderDropList();
+}
+function toggleDropHistory(){
+  dropShowDropped=!dropShowDropped;
+  const btn=document.getElementById('drop-hist-btn');
+  if(btn){btn.style.color=dropShowDropped?'var(--no)':'var(--dim)';btn.style.borderColor=dropShowDropped?'var(--no)':'var(--border)';}
+  renderDropList();
+}
+
 function renderDropList(){
-  const statusFilter=document.getElementById('drop-filter-sel')?.value||'';
-  let base=statusFilter?dropEntries.filter(e=>e.status===statusFilter):dropEntries;
-  if(dropCarrierFilter)base=base.filter(e=>e.carrier===dropCarrierFilter);
-  // Tri : reçus d'abord (ordre d'envoi), droppés en bas (plus récent en tête)
-  function _seq(e){if(typeof e.seq==='number')return e.seq;const m=(e.id||'').match(/-(\d+)$/);return m?parseInt(m[1]):0;}
-  const list=[...base].sort((a,b)=>{
-    if(a.status===b.status){
-      if(a.status==='received')return _seq(a)-_seq(b); // ordre d'arrivée (seq ascendant)
-      return new Date(b.date)-new Date(a.date);        // droppés : plus récent en haut
-    }
-    return a.status==='received'?-1:1;
-  });
+  // Séparation reçus / droppés
+  let received=dropEntries.filter(e=>e.status==='received');
+  let dropped=dropEntries.filter(e=>e.status==='dropped');
+  if(dropCarrierFilter){received=received.filter(e=>e.carrier===dropCarrierFilter);dropped=dropped.filter(e=>e.carrier===dropCarrierFilter);}
+
+  // Les numéros globaux sont toujours basés sur l'ordre seq ascendant (1=plus ancien)
+  const receivedBySeq=[...received].sort((a,b)=>_seq(a)-_seq(b));
+  const globalNum={};receivedBySeq.forEach((e,i)=>{globalNum[e.id]=i+1;});
+
+  // Tri d'affichage des reçus
+  const receivedSorted=dropSortDesc
+    ?[...received].sort((a,b)=>_seq(b)-_seq(a))
+    :[...receivedBySeq];
+
+  // Droppés : plus récent en haut
+  const droppedSorted=[...dropped].sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  const list=[...receivedSorted,...(dropShowDropped?droppedSorted:[])];
   const el=document.getElementById('drop-entries-list');
   if(!list.length){
     el.innerHTML=`<div style="text-align:center;padding:60px;color:var(--dim)">
@@ -2462,13 +2482,15 @@ function renderDropList(){
     const carrierBadge=e.carrier?`<span style="padding:2px 9px;border-radius:10px;font-size:.65rem;font-family:'Share Tech Mono',monospace;font-weight:700;border:1px solid ${carrierCol}66;color:${carrierCol};background:${carrierCol}18;margin-left:4px">${escHTML(e.carrier)}</span>`:'';
     const code=allCodes[e.id]||'';
     const codeBadge=code?`<span style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:#aaa;padding:1px 7px;border:1px solid #444;border-radius:5px;margin-left:4px;letter-spacing:.05em">${escHTML(code)}</span>`:'';
+    const num=globalNum[e.id];
+    const numBadge=num?`<span style="font-family:'Share Tech Mono',monospace;font-size:.78rem;font-weight:700;color:var(--nb);background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);border-radius:5px;padding:1px 7px;margin-right:4px">#${num}</span>`:'';
     const descHtml=e.description
       ?`<span id="drop-desc-text-${escHTML(e.id)}">${escHTML(e.description)}</span>`
       :`<span id="drop-desc-text-${escHTML(e.id)}" style="color:var(--dim);font-style:italic;font-size:.82rem">Aucune description</span>`;
     return `<div class="drop-card${isDropped?' is-dropped':''}${flagged?' is-flagged':''}" id="dcard-${escHTML(e.id)}" style="animation-delay:${i*0.04}s;cursor:pointer" onclick="openDropViewer('${escHTML(e.id)}')">
       <input type="checkbox" class="drop-card-check" value="${escHTML(e.id)}" data-flagged="${flagged}" onchange="updateDropSelUI()" onclick="event.stopPropagation()">
       <div class="drop-card-body">
-        <div style="margin-bottom:4px">${badge}${carrierBadge}${flagBadge}${codeBadge}<span class="drop-price-chip">€${price}/drop</span></div>
+        <div style="margin-bottom:4px">${numBadge}${badge}${carrierBadge}${flagBadge}${codeBadge}<span class="drop-price-chip">€${price}/drop</span></div>
         <div class="drop-sender">👤 ${escHTML(e.senderName||'Inconnu')}</div>
         <div class="drop-desc" id="drop-desc-${escHTML(e.id)}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${descHtml}
