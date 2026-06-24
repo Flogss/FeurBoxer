@@ -185,6 +185,26 @@ function startDropBot() {
     dropBot.on('polling_error', (err) => console.error('Drop bot polling error:', err.message));
     setTimeout(() => dropBot.startPolling(), 4000);
 
+    // ── File d'attente FIFO — traitement séquentiel ──
+    const _dropQueue = [];
+    let _dropQueueRunning = false;
+    let _dropSeq = 0; // compteur pour IDs uniques
+
+    function enqueueFile(msg, fileId, originalName, mimeType) {
+      _dropQueue.push({ msg, fileId, originalName, mimeType });
+      if (!_dropQueueRunning) processDropQueue();
+    }
+
+    async function processDropQueue() {
+      _dropQueueRunning = true;
+      while (_dropQueue.length > 0) {
+        const task = _dropQueue.shift();
+        await handleFile(task.msg, task.fileId, task.originalName, task.mimeType);
+        if (_dropQueue.length > 0) await new Promise(r => setTimeout(r, 300)); // anti-flood Telegram
+      }
+      _dropQueueRunning = false;
+    }
+
     async function handleFile(msg, fileId, originalName, mimeType) {
       try {
         const filename = await downloadTgFile(token, dropBot, fileId);
@@ -192,25 +212,24 @@ function startDropBot() {
         // Priorité : expéditeur d'origine si message transféré
         let senderId, senderName, senderUsername;
         if (msg.forward_from) {
-          // Transfert avec infos complètes
           senderId = String(msg.forward_from.id);
           senderName = (msg.forward_from.first_name + ' ' + (msg.forward_from.last_name || '')).trim();
           senderUsername = msg.forward_from.username || '';
         } else if (msg.forward_sender_name) {
-          // Transfert avec confidentialité activée — seulement le nom
           senderId = 'fwd-' + msg.from.id;
           senderName = msg.forward_sender_name;
           senderUsername = '';
         } else {
-          // Message direct
           senderId = String(msg.from.id);
           senderName = (msg.from.first_name + ' ' + (msg.from.last_name || '')).trim();
           senderUsername = msg.from.username || '';
         }
 
         const caption = msg.caption || '';
+        // ID unique : timestamp Telegram (secondes) + séquence locale pour éviter collisions
+        _dropSeq++;
         const entry = {
-          id: 'DRP-' + Date.now().toString(36).toUpperCase(),
+          id: 'DRP-' + (msg.date || Math.floor(Date.now()/1000)).toString(36).toUpperCase() + '-' + _dropSeq,
           senderId,
           senderName,
           senderUsername,
@@ -219,7 +238,8 @@ function startDropBot() {
           filename,
           originalName: originalName || filename,
           mimeType: mimeType || '',
-          date: new Date().toISOString(),
+          // Date basée sur le timestamp Telegram pour préserver l'ordre d'envoi
+          date: new Date((msg.date || Math.floor(Date.now()/1000)) * 1000).toISOString(),
           status: 'received',
           carrier: detectCarrier(caption) || null,
           paid: false
@@ -234,25 +254,23 @@ function startDropBot() {
             if (err) return;
             try {
               const data = JSON.parse(stdout);
-              if (data.carrier) {
-                entry.carrier = data.carrier;
-                db.updateDropEntry(entry);
-              }
+              if (data.carrier) { entry.carrier = data.carrier; db.updateDropEntry(entry); }
             } catch(e) {}
           });
         }
-        const price = (settings.dropPrices || {})[senderId] ?? settings.dropPriceDefault ?? 5;
+        const price = (db.getSettings().dropPrices || {})[senderId] ?? db.getSettings().dropPriceDefault ?? 5;
 
         // Notification vers le destinataire configuré
-        const notifyUid = settings.dropNotifyUid;
+        const notifyUid = db.getSettings().dropNotifyUid;
         if (notifyUid) {
           const pending = db.getDropEntries().filter(e => e.status === 'received').length;
           const notifMsg = `📦 *Nouveau bordereau reçu !*\n\n👤 ${senderName}\n📝 ${caption || '_(sans description)_'}\n💰 €${price}/drop\n${entry.carrier ? '🚚 ' + entry.carrier + '\n' : ''}📊 En attente : *${pending}* bordereau(x)`;
           dropBot.sendMessage(notifyUid, notifMsg, { parse_mode: 'Markdown' }).catch(() => {});
         }
 
+        const queueInfo = _dropQueue.length > 0 ? `\n⏳ ${_dropQueue.length} en file d'attente…` : '';
         await dropBot.sendMessage(msg.chat.id,
-          `✅ *Bordereau reçu !*\n\n📋 \`${entry.id}\`\n💰 Tarif drop : €${price}\n📝 ${entry.description || '_(sans description)_'}\n\nEnregistré dans le panel drop.`,
+          `✅ *Bordereau reçu !*\n\n📋 \`${entry.id}\`\n💰 Tarif drop : €${price}\n📝 ${entry.description || '_(sans description)_'}\n\nEnregistré dans le panel drop.${queueInfo}`,
           { parse_mode: 'Markdown' }
         );
       } catch(e) {
@@ -263,11 +281,11 @@ function startDropBot() {
 
     dropBot.on('document', (msg) => {
       const doc = msg.document;
-      handleFile(msg, doc.file_id, doc.file_name, doc.mime_type);
+      enqueueFile(msg, doc.file_id, doc.file_name, doc.mime_type);
     });
     dropBot.on('photo', (msg) => {
       const photo = msg.photo[msg.photo.length - 1];
-      handleFile(msg, photo.file_id, 'photo.jpg', 'image/jpeg');
+      enqueueFile(msg, photo.file_id, 'photo.jpg', 'image/jpeg');
     });
 
     dropBot.onText(/\/start/, (msg) => {
