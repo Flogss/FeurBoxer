@@ -323,7 +323,8 @@ function startDropBot() {
         const entry = {
           id: 'DRP-' + (msg.date || Math.floor(Date.now()/1000)).toString(36).toUpperCase() + '-' + _dropSeq,
           seq: _dropSeq,       // pour tri stable côté client
-          tgMsgId: msg.message_id, // pour détecter la réaction ❤️
+          tgMsgId: msg.message_id,
+          tgMediaGroup: msg.media_group_id || null,
           tgChatId: chatId,
           senderId, senderName, senderUsername,
           forwardedBy: (msg.forward_from || msg.forward_sender_name) ? String(msg.from.id) : null,
@@ -373,19 +374,34 @@ function startDropBot() {
       enqueueFile(msg, photo.file_id, 'photo.jpg', 'image/jpeg');
     });
 
-    // ── /scotchall — marque tous les bordereaux reçus de ce chat comme SCOTCH ──
+    // ── /scotchall — marque tous les bordereaux du groupe (reply) comme SCOTCH ──
     dropBot.onText(/^\/scotchall$/i, (msg) => {
       const chatId = String(msg.chat.id);
-      const received = db.getDropEntries().filter(e => e.status === 'received' && e.tgChatId === chatId);
+      const rid = msg.reply_to_message ? msg.reply_to_message.message_id : null;
+      if (!rid) {
+        dropBot.sendMessage(chatId, '❌ Réponds à un bordereau du groupe pour scotcher tout le groupe.', { parse_mode: 'Markdown' }).catch(() => {});
+        return;
+      }
+      // Trouver l'entrée cible pour récupérer son media_group_id
+      const target = db.getDropEntries().find(e => e.tgMsgId === rid && e.tgChatId === chatId);
+      if (!target) {
+        dropBot.sendMessage(chatId, '❌ Bordereau introuvable dans ce groupe.', { parse_mode: 'Markdown' }).catch(() => {});
+        return;
+      }
+      // Scotcher tout le groupe (même media_group_id) ou juste cette entrée si pas de groupe
+      const groupId = target.tgMediaGroup;
+      const toScotch = groupId
+        ? db.getDropEntries().filter(e => e.tgMediaGroup === groupId && e.tgChatId === chatId && e.status === 'received')
+        : [target];
       let count = 0;
-      received.forEach(e => {
+      toScotch.forEach(e => {
         if (!(e.description || '').toLowerCase().includes('scotch')) {
           e.description = e.description ? e.description + ' scotch' : 'scotch';
           db.updateDropEntry(e);
           count++;
         }
       });
-      dropBot.sendMessage(chatId, `⚠️ *${count} bordereau(x) marqué(s) SCOTCH*`, { parse_mode: 'Markdown' }).catch(() => {});
+      dropBot.sendMessage(chatId, `⚠️ *${count} bordereau(x) du groupe marqué(s) SCOTCH*`, { parse_mode: 'Markdown' }).catch(() => {});
     });
 
     // ── /scotch [N] — reply à un fichier OU numéro dans la liste reçue ──
