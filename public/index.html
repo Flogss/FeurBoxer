@@ -2431,13 +2431,12 @@ function renderDropList(){
   const statusFilter=document.getElementById('drop-filter-sel')?.value||'';
   let base=statusFilter?dropEntries.filter(e=>e.status===statusFilter):dropEntries;
   if(dropCarrierFilter)base=base.filter(e=>e.carrier===dropCarrierFilter);
-  // Tri : en attente d'abord, droppés en bas (puis les plus récents en tête dans chaque groupe)
+  // Tri : reçus d'abord (ordre d'envoi), droppés en bas (plus récent en tête)
+  function _seq(e){if(typeof e.seq==='number')return e.seq;const m=(e.id||'').match(/-(\d+)$/);return m?parseInt(m[1]):0;}
   const list=[...base].sort((a,b)=>{
     if(a.status===b.status){
-      // Reçus : premier envoyé en haut (ordre d'arrivée)
-      if(a.status==='received') return new Date(a.date)-new Date(b.date);
-      // Droppés : plus récent en haut
-      return new Date(b.date)-new Date(a.date);
+      if(a.status==='received')return _seq(a)-_seq(b); // ordre d'arrivée (seq ascendant)
+      return new Date(b.date)-new Date(a.date);        // droppés : plus récent en haut
     }
     return a.status==='received'?-1:1;
   });
@@ -2498,11 +2497,25 @@ async function markDropped(id){
 }
 
 async function deleteDrop(id){
+  const card=document.getElementById('dcard-'+id);
+  if(card){
+    card.style.transition='opacity .22s ease, transform .22s ease, max-height .22s ease, margin .22s ease, padding .22s ease';
+    card.style.overflow='hidden';
+    card.style.maxHeight=card.offsetHeight+'px';
+    requestAnimationFrame(()=>{
+      card.style.opacity='0';
+      card.style.transform='scaleY(0.6)';
+      card.style.maxHeight='0';
+      card.style.marginBottom='0';
+      card.style.paddingTop='0';
+      card.style.paddingBottom='0';
+    });
+    await new Promise(r=>setTimeout(r,240));
+  }
   try{
     await apiFetch('DELETE','/drop/entries/'+id);
     dropEntries=dropEntries.filter(e=>e.id!==id);
     updateDropStats();renderDropList();renderSenderStats();
-    showToast('🗑 Bordereau supprimé','info');
   }catch(e){showToast('❌ '+e.message,'error');}
 }
 

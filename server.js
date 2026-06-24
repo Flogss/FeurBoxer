@@ -181,7 +181,14 @@ function startDropBot() {
   if (!token) return;
   try {
     if (dropBot) { try { dropBot.stopPolling(); } catch(e) {} }
-    dropBot = new TelegramBot(token, { polling: { autoStart: false, interval: 2000 } });
+    dropBot = new TelegramBot(token, { polling: { autoStart: false, interval: 2000, params: { allowed_updates: ['message', 'message_reaction'] } } });
+
+    // Patch processUpdate pour gérer message_reaction (non supporté en v0.64)
+    const _origPU = dropBot.processUpdate.bind(dropBot);
+    dropBot.processUpdate = function(update) {
+      if (update.message_reaction) dropBot.emit('message_reaction', update.message_reaction);
+      return _origPU(update);
+    };
     dropBot.on('polling_error', (err) => console.error('Drop bot polling error:', err.message));
     setTimeout(() => dropBot.startPolling(), 4000);
 
@@ -296,6 +303,9 @@ function startDropBot() {
         _dropSeq++;
         const entry = {
           id: 'DRP-' + (msg.date || Math.floor(Date.now()/1000)).toString(36).toUpperCase() + '-' + _dropSeq,
+          seq: _dropSeq,       // pour tri stable côté client
+          tgMsgId: msg.message_id, // pour détecter la réaction ❤️
+          tgChatId: chatId,
           senderId, senderName, senderUsername,
           forwardedBy: (msg.forward_from || msg.forward_sender_name) ? String(msg.from.id) : null,
           description: caption, filename,
@@ -341,6 +351,21 @@ function startDropBot() {
     dropBot.on('photo', (msg) => {
       const photo = msg.photo[msg.photo.length - 1];
       enqueueFile(msg, photo.file_id, 'photo.jpg', 'image/jpeg');
+    });
+
+    // ── Réaction ❤️ sur un bordereau → marque comme SCOTCH ──
+    dropBot.on('message_reaction', (reaction) => {
+      const hasHeart = (reaction.new_reaction || []).some(r => r.emoji === '❤' || r.emoji === '❤️');
+      if (!hasHeart) return;
+      const rChatId = String(reaction.chat?.id || '');
+      const rMsgId  = reaction.message_id;
+      const entry = db.getDropEntries().find(e => e.tgMsgId === rMsgId && e.tgChatId === rChatId);
+      if (!entry) return;
+      if (!(entry.description || '').toLowerCase().includes('scotch')) {
+        entry.description = entry.description ? entry.description + ' scotch' : 'scotch';
+        db.updateDropEntry(entry);
+      }
+      dropBot.sendMessage(rChatId, `⚠️ Bordereau \`${entry.id}\` marqué *SCOTCH*`, { parse_mode: 'Markdown' }).catch(() => {});
     });
 
     dropBot.onText(/\/start/, (msg) => {
