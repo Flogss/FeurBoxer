@@ -181,14 +181,7 @@ function startDropBot() {
   if (!token) return;
   try {
     if (dropBot) { try { dropBot.stopPolling(); } catch(e) {} }
-    dropBot = new TelegramBot(token, { polling: { autoStart: false, interval: 2000, params: { allowed_updates: ['message', 'message_reaction'] } } });
-
-    // Patch processUpdate pour gérer message_reaction (non supporté en v0.64)
-    const _origPU = dropBot.processUpdate.bind(dropBot);
-    dropBot.processUpdate = function(update) {
-      if (update.message_reaction) dropBot.emit('message_reaction', update.message_reaction);
-      return _origPU(update);
-    };
+    dropBot = new TelegramBot(token, { polling: { autoStart: false, interval: 2000 } });
     dropBot.on('polling_error', (err) => console.error('Drop bot polling error:', err.message));
     setTimeout(() => dropBot.startPolling(), 4000);
 
@@ -353,19 +346,46 @@ function startDropBot() {
       enqueueFile(msg, photo.file_id, 'photo.jpg', 'image/jpeg');
     });
 
-    // ── Réaction ❤️ sur un bordereau → marque comme SCOTCH ──
-    dropBot.on('message_reaction', (reaction) => {
-      const hasHeart = (reaction.new_reaction || []).some(r => r.emoji === '❤' || r.emoji === '❤️');
-      if (!hasHeart) return;
-      const rChatId = String(reaction.chat?.id || '');
-      const rMsgId  = reaction.message_id;
-      const entry = db.getDropEntries().find(e => e.tgMsgId === rMsgId && e.tgChatId === rChatId);
-      if (!entry) return;
+    // ── /scotch [N] — reply à un fichier OU numéro dans la liste reçue ──
+    dropBot.onText(/^\/scotch(?:\s+(\d+))?$/i, (msg, match) => {
+      const chatId = String(msg.chat.id);
+      let entry = null;
+      if (match[1]) {
+        const n = parseInt(match[1]);
+        const received = db.getDropEntries()
+          .filter(e => e.status === 'received')
+          .sort((a, b) => (a.seq || 0) - (b.seq || 0));
+        entry = received[n - 1] || null;
+      } else if (msg.reply_to_message) {
+        const rid = msg.reply_to_message.message_id;
+        entry = db.getDropEntries().find(e => e.tgMsgId === rid && e.tgChatId === chatId);
+      }
+      if (!entry) { dropBot.sendMessage(chatId, '❌ Bordereau introuvable. Réponds à un fichier ou fais `/scotch N`.', { parse_mode: 'Markdown' }).catch(() => {}); return; }
       if (!(entry.description || '').toLowerCase().includes('scotch')) {
         entry.description = entry.description ? entry.description + ' scotch' : 'scotch';
         db.updateDropEntry(entry);
       }
-      dropBot.sendMessage(rChatId, `⚠️ Bordereau \`${entry.id}\` marqué *SCOTCH*`, { parse_mode: 'Markdown' }).catch(() => {});
+      dropBot.sendMessage(chatId, `⚠️ \`${entry.id}\` marqué *SCOTCH*`, { parse_mode: 'Markdown', reply_to_message_id: msg.message_id }).catch(() => {});
+    });
+
+    // ── /unscotch [N] ──
+    dropBot.onText(/^\/unscotch(?:\s+(\d+))?$/i, (msg, match) => {
+      const chatId = String(msg.chat.id);
+      let entry = null;
+      if (match[1]) {
+        const n = parseInt(match[1]);
+        const received = db.getDropEntries()
+          .filter(e => e.status === 'received')
+          .sort((a, b) => (a.seq || 0) - (b.seq || 0));
+        entry = received[n - 1] || null;
+      } else if (msg.reply_to_message) {
+        const rid = msg.reply_to_message.message_id;
+        entry = db.getDropEntries().find(e => e.tgMsgId === rid && e.tgChatId === chatId);
+      }
+      if (!entry) { dropBot.sendMessage(chatId, '❌ Bordereau introuvable.').catch(() => {}); return; }
+      entry.description = (entry.description || '').replace(/\bscotch\b/gi, '').replace(/\s+/g, ' ').trim() || '';
+      db.updateDropEntry(entry);
+      dropBot.sendMessage(chatId, `✅ \`${entry.id}\` — SCOTCH retiré`, { parse_mode: 'Markdown', reply_to_message_id: msg.message_id }).catch(() => {});
     });
 
     dropBot.onText(/\/start/, (msg) => {
