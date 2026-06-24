@@ -218,16 +218,30 @@ function startDropBot() {
       if (final) {
         const lines = Object.entries(p.senders).map(([n, c]) => `  • *${n}* : ${c} bdx`).join('\n');
         text = `✅ *${p.done}/${p.total} bordereau(x) enregistré(s)*\n\n\`${bar}\`  ${processed}/${p.total}\n\n${lines}${p.errors ? `\n\n⚠️ ${p.errors} erreur(s)` : ''}`;
-        // Résumé unique vers le destinataire de notifications
+        // Résumé visuel vers le destinataire de notifications
         if (p.notif) {
           const cfg = db.getSettings();
           if (cfg.dropNotifyUid) {
-            const pending = db.getDropEntries().filter(e => e.status === 'received').length;
-            const nlines = Object.entries(p.notif.senders).map(([n, c]) => `  • *${n}* : ${c} bdx`).join('\n');
-            dropBot.sendMessage(cfg.dropNotifyUid,
-              `📦 *${p.done} nouveau(x) bordereau(x) reçu(s)*\n\n${nlines}\n\n📊 Total en attente : *${pending}*`,
-              { parse_mode: 'Markdown' }
-            ).catch(() => {});
+            const all = db.getDropEntries().filter(e => e.status === 'received');
+            const pending = all.length;
+            const scotchPending = all.filter(e => /scotch|lit/i.test(e.description || '')).length;
+            const totalScotch = p.notif.scotch || 0;
+            const totalNorm = p.done - totalScotch;
+            const senderLines = Object.entries(p.notif.senders).map(([n, c]) => {
+              const sc = (p.notif.senderScotch || {})[n] || 0;
+              const norm = c - sc;
+              return `  ${sc > 0 ? '🔴' : '🟢'} *${n}* — ${norm > 0 ? norm + ' normal' + (norm > 1 ? 's' : '') : ''}${norm > 0 && sc > 0 ? ' + ' : ''}${sc > 0 ? sc + ' ⚠️ SCOTCH' : ''}`;
+            }).join('\n');
+            const msg =
+              `🔷🔷🔷 *NOUVEAUX BORDEREAUX* 🔷🔷🔷\n\n` +
+              `📦 *${p.done}* reçu(s)` +
+              (totalNorm > 0 ? `  ✅ *${totalNorm}* normal${totalNorm > 1 ? 's' : ''}` : '') +
+              (totalScotch > 0 ? `  ⚠️ *${totalScotch}* SCOTCH` : '') +
+              `\n\n━━━━━━ EXPÉDITEURS ━━━━━━\n${senderLines}\n\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `📊 En attente : *${pending}* colis` +
+              (scotchPending > 0 ? `\n⚠️ Dont SCOTCH : *${scotchPending}*` : '');
+            dropBot.sendMessage(cfg.dropNotifyUid, msg, { parse_mode: 'Markdown' }).catch(() => {});
           }
         }
         delete _chatProg[chatId];
@@ -335,8 +349,13 @@ function startDropBot() {
         if (p) {
           p.done++;
           p.senders[senderName] = (p.senders[senderName] || 0) + 1;
-          if (!p.notif) p.notif = { senders: {} };
+          if (!p.notif) p.notif = { senders: {}, senderScotch: {}, scotch: 0 };
           p.notif.senders[senderName] = (p.notif.senders[senderName] || 0) + 1;
+          if (/scotch|lit/i.test(entry.description || '')) {
+            p.notif.scotch = (p.notif.scotch || 0) + 1;
+            if (!p.notif.senderScotch) p.notif.senderScotch = {};
+            p.notif.senderScotch[senderName] = (p.notif.senderScotch[senderName] || 0) + 1;
+          }
         }
       } catch(e) {
         console.error('Drop handleFile error:', e.message);
@@ -954,7 +973,7 @@ app.post('/api/drop/print', (req, res) => {
 // ── DROP SETTINGS ──
 app.get('/api/drop/settings', (req, res) => {
   const s = db.getSettings();
-  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {}, dropNotifyUid: s.dropNotifyUid || '', dropManualRevenue: s.dropManualRevenue || 0, dropPrefixes: s.dropPrefixes || {} });
+  res.json({ dropBotToken: s.dropBotToken || '', dropPriceDefault: s.dropPriceDefault ?? 5, dropPrices: s.dropPrices || {}, dropNotifyUid: s.dropNotifyUid || '', dropManualRevenue: s.dropManualRevenue || 0, dropPrefixes: s.dropPrefixes || {}, dropScotchPrices: s.dropScotchPrices || {} });
 });
 
 app.put('/api/drop/settings', (req, res) => {
@@ -965,6 +984,7 @@ app.put('/api/drop/settings', (req, res) => {
   if (req.body.dropNotifyUid !== undefined) update.dropNotifyUid = String(req.body.dropNotifyUid).trim();
   if (req.body.dropManualRevenue !== undefined) update.dropManualRevenue = Number(req.body.dropManualRevenue) || 0;
   if (req.body.dropPrefixes !== undefined) update.dropPrefixes = req.body.dropPrefixes;
+  if (req.body.dropScotchPrices !== undefined) update.dropScotchPrices = req.body.dropScotchPrices;
   db.updateSettings(update);
   if (req.body.dropBotToken) setTimeout(startDropBot, 500);
   res.json({ ok: true });

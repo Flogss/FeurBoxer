@@ -783,7 +783,9 @@ nav{animation:nav-in .55s cubic-bezier(.22,1,.36,1) both;}
         <button id="drop-hist-btn" onclick="toggleDropHistory()" style="padding:8px 12px;background:transparent;border:1px solid var(--border);color:var(--dim);border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.8rem">📂 ANCIENS COLIS</button>
       </div>
       <!-- Filtre transporteurs -->
-      <div id="drop-carrier-filters" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div id="drop-carrier-filters" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <!-- Résumé scotch / normal -->
+      <div id="drop-summary-line" style="font-size:.82rem;padding:2px 0 10px;display:flex;gap:14px"></div>
     </div>
     <!-- List -->
     <div class="drop-list-wrap">
@@ -2355,7 +2357,12 @@ async function paySender(senderId,senderName,amount){
 }
 
 function dropPrice(e){
-  return Number((dropSettings.dropPrices||{})[String(e.senderId)]??dropSettings.dropPriceDefault??5);
+  const sid=String(e.senderId);
+  if(isFlagged(e.description)){
+    const sp=(dropSettings.dropScotchPrices||{})[sid];
+    if(sp!==undefined)return Number(sp);
+  }
+  return Number((dropSettings.dropPrices||{})[sid]??dropSettings.dropPriceDefault??5);
 }
 
 function updateDropStats(){
@@ -2459,7 +2466,23 @@ function renderDropList(){
   // Droppés : plus récent en haut
   const droppedSorted=[...dropped].sort((a,b)=>new Date(b.date)-new Date(a.date));
 
-  const list=[...receivedSorted,...(dropShowDropped?droppedSorted:[])];
+  // Vue exclusive : reçus OU droppés (pas les deux en même temps)
+  const list=dropShowDropped?droppedSorted:receivedSorted;
+
+  // Résumé scotch / normal au-dessus de la liste (uniquement en vue reçus)
+  const sumEl=document.getElementById('drop-summary-line');
+  if(sumEl){
+    if(!dropShowDropped){
+      const nNorm=receivedBySeq.filter(e=>!isFlagged(e.description)).length;
+      const nScotch=receivedBySeq.filter(e=>isFlagged(e.description)).length;
+      const total=receivedBySeq.length;
+      sumEl.innerHTML=total===0?'':
+        `<span style="color:var(--ng)">✅ ${nNorm} normal${nNorm!==1?'s':''}</span>`+
+        (nScotch?`<span style="color:var(--np)">⚠️ ${nScotch} SCOTCH</span>`:'');
+    } else {
+      sumEl.innerHTML=`<span style="color:var(--dim)">📂 ${droppedSorted.length} droppé(s)</span>`;
+    }
+  }
   const el=document.getElementById('drop-entries-list');
   if(!list.length){
     el.innerHTML=`<div style="text-align:center;padding:60px;color:var(--dim)">
@@ -2846,6 +2869,7 @@ function renderDropPrices(){
   });
   const list=Object.values(senders);
   const prices=dropSettings.dropPrices||{};
+  const scotchPrices=dropSettings.dropScotchPrices||{};
   const prefixes=dropSettings.dropPrefixes||{};
   const el=document.getElementById('drop-prices-list');
   if(!list.length){el.innerHTML='<p style="color:var(--dim);font-size:.82rem">Aucun expéditeur connu — envoyez un bordereau au bot drop pour qu\'il apparaisse ici.</p>';return;}
@@ -2853,24 +2877,30 @@ function renderDropPrices(){
     const sid=String(s.id);
     const defaultPrefix=(s.name||'X')[0].toUpperCase();
     const prefix=prefixes[sid]||defaultPrefix;
-    return `<div class="price-row">
-      <div style="flex:1">
+    const basePrice=Number(prices[sid]??dropSettings.dropPriceDefault??5);
+    const scotchPrice=Number(scotchPrices[sid]??basePrice);
+    return `<div class="price-row" style="flex-wrap:wrap;gap:8px">
+      <div style="flex:1;min-width:100px">
         <div style="font-family:'Orbitron',sans-serif;font-size:.78rem;color:var(--nb)">${escHTML(s.name||'Inconnu')}</div>
         ${s.username?`<div style="font-size:.72rem;color:var(--dim)">@${escHTML(s.username)}</div>`:''}
         <div style="font-size:.68rem;color:var(--dim);font-family:'Share Tech Mono',monospace">${escHTML(sid)}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:5px" title="Préfixe du code (ex: M pour M1, M2…)">
+      <div style="display:flex;align-items:center;gap:5px" title="Préfixe du code">
         <span style="color:var(--dim);font-size:.75rem">Code</span>
         <input type="text" class="form-input" style="width:42px;padding:6px;text-align:center;text-transform:uppercase;font-family:'Share Tech Mono',monospace;font-size:.88rem"
           id="dp-prefix-${escHTML(sid)}" value="${escHTML(prefix)}" maxlength="2">
       </div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="color:var(--dim);font-size:.85rem">€</span>
-        <input type="number" class="form-input" style="width:72px;padding:7px;font-size:.88rem;text-align:center"
-          id="dp-${escHTML(sid)}"
-          value="${Number(prices[sid]??dropSettings.dropPriceDefault??5)}"
-          min="0" step="0.5">
-        <span style="color:var(--dim);font-size:.75rem">/drop</span>
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="color:var(--ng);font-size:.75rem">🟢€</span>
+        <input type="number" class="form-input" style="width:66px;padding:7px;font-size:.88rem;text-align:center"
+          id="dp-${escHTML(sid)}" value="${basePrice}" min="0" step="0.5">
+        <span style="color:var(--dim);font-size:.7rem">/drop</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px" title="Prix colis SCOTCH">
+        <span style="color:var(--np);font-size:.75rem">⚠️€</span>
+        <input type="number" class="form-input" style="width:66px;padding:7px;font-size:.88rem;text-align:center;border-color:rgba(255,73,128,0.4)"
+          id="dp-scotch-${escHTML(sid)}" value="${scotchPrice}" min="0" step="0.5">
+        <span style="color:var(--np);font-size:.7rem">scotch</span>
       </div>
     </div>`;
   }).join('');
@@ -2880,18 +2910,20 @@ async function saveDropSettings(){
   const defaultPrice=parseFloat(document.getElementById('drop-default-price').value)||5;
   const botToken=document.getElementById('drop-bot-token-input').value.trim();
   const notifyUid=document.getElementById('drop-notify-uid').value.trim();
-  const prices={};const prefixes={};
+  const prices={};const prefixes={};const scotchPrices={};
   const senders={};
   dropEntries.forEach(e=>{if(!senders[e.senderId])senders[e.senderId]=e.senderName||'X';});
   Object.keys(senders).forEach(id=>{
     const inp=document.getElementById('dp-'+id);
     if(inp)prices[id]=parseFloat(inp.value)||defaultPrice;
+    const sinp=document.getElementById('dp-scotch-'+id);
+    if(sinp)scotchPrices[id]=parseFloat(sinp.value)||defaultPrice;
     const pinp=document.getElementById('dp-prefix-'+id);
     if(pinp){const v=pinp.value.trim().toUpperCase().slice(0,2);prefixes[id]=v||(senders[id]||'X')[0].toUpperCase();}
   });
   try{
-    await apiFetch('PUT','/drop/settings',{dropPriceDefault:defaultPrice,dropPrices:prices,dropBotToken:botToken,dropNotifyUid:notifyUid,dropPrefixes:prefixes});
-    dropSettings={...dropSettings,dropBotToken:botToken,dropPriceDefault:defaultPrice,dropPrices:prices,dropNotifyUid:notifyUid,dropPrefixes:prefixes};
+    await apiFetch('PUT','/drop/settings',{dropPriceDefault:defaultPrice,dropPrices:prices,dropBotToken:botToken,dropNotifyUid:notifyUid,dropPrefixes:prefixes,dropScotchPrices:scotchPrices});
+    dropSettings={...dropSettings,dropBotToken:botToken,dropPriceDefault:defaultPrice,dropPrices:prices,dropNotifyUid:notifyUid,dropPrefixes:prefixes,dropScotchPrices:scotchPrices};
     closeModal('modal-drop-settings');
     renderDropList();updateDropStats();
     showToast('✅ Réglages drop sauvegardés','success');
