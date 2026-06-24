@@ -2433,7 +2433,12 @@ function renderDropList(){
   if(dropCarrierFilter)base=base.filter(e=>e.carrier===dropCarrierFilter);
   // Tri : en attente d'abord, droppés en bas (puis les plus récents en tête dans chaque groupe)
   const list=[...base].sort((a,b)=>{
-    if(a.status===b.status)return new Date(b.date)-new Date(a.date);
+    if(a.status===b.status){
+      // Reçus : premier envoyé en haut (ordre d'arrivée)
+      if(a.status==='received') return new Date(a.date)-new Date(b.date);
+      // Droppés : plus récent en haut
+      return new Date(b.date)-new Date(a.date);
+    }
     return a.status==='received'?-1:1;
   });
   const el=document.getElementById('drop-entries-list');

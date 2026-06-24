@@ -191,9 +191,10 @@ function startDropBot() {
     let _dropSeq = 0;
 
     // Un seul message de progression par chat, édité au fur et à mesure
-    const _chatProg  = {}; // chatId → { msgId, total, done, errors, senders:{} }
-    const _progLock  = {}; // chatId → Promise (sérialise les edits pour éviter les races)
-    const _progTimer = {}; // chatId → timer (debounce)
+    const _chatProg   = {}; // chatId → { msgId, total, done, errors, senders:{} }
+    const _progLock   = {}; // chatId → Promise (sérialise les edits)
+    const _arriveTimer= {}; // chatId → debounce pour arrivées rapides
+    const _doneTimer  = {}; // chatId → timer "fin de session" (2s après dernier traitement)
 
     function makeBar(done, total) {
       const LEN = 20;
@@ -201,25 +202,20 @@ function startDropBot() {
       return '█'.repeat(f) + '░'.repeat(LEN - f);
     }
 
-    // Debounce : fusionne les mises à jour rapides en un seul edit (400ms)
-    function scheduleProgress(chatId) {
-      clearTimeout(_progTimer[chatId]);
-      _progTimer[chatId] = setTimeout(() => {
-        const prev = _progLock[chatId] || Promise.resolve();
-        const next = prev.then(() => doProgressEdit(chatId));
-        _progLock[chatId] = next.catch(() => {});
-      }, 400);
+    function runEdit(chatId, final = false) {
+      const prev = _progLock[chatId] || Promise.resolve();
+      const next = prev.then(() => doProgressEdit(chatId, final));
+      _progLock[chatId] = next.catch(() => {});
     }
 
-    async function doProgressEdit(chatId) {
+    async function doProgressEdit(chatId, final = false) {
       const p = _chatProg[chatId];
       if (!p) return;
       const processed = p.done + p.errors;
-      const finished  = processed >= p.total;
       const bar = makeBar(processed, p.total);
 
       let text;
-      if (finished) {
+      if (final) {
         const lines = Object.entries(p.senders).map(([n, c]) => `  • *${n}* : ${c} bdx`).join('\n');
         text = `✅ *${p.done}/${p.total} bordereau(x) enregistré(s)*\n\n\`${bar}\`  ${processed}/${p.total}\n\n${lines}${p.errors ? `\n\n⚠️ ${p.errors} erreur(s)` : ''}`;
         delete _chatProg[chatId];
@@ -238,11 +234,31 @@ function startDropBot() {
       } catch(e) { /* "message not modified" est normal */ }
     }
 
+    // Appelé à chaque arrivée : debounce 400ms (annule le timer "fin")
+    function onFileArrived(chatId) {
+      clearTimeout(_doneTimer[chatId]);
+      clearTimeout(_arriveTimer[chatId]);
+      _arriveTimer[chatId] = setTimeout(() => runEdit(chatId), 400);
+    }
+
+    // Appelé après chaque traitement : mise à jour immédiate + timer "fin" 2s
+    function onFileProcessed(chatId) {
+      clearTimeout(_doneTimer[chatId]);
+      runEdit(chatId); // barre en temps réel
+      // 2 secondes sans nouvelle arrivée = on considère le lot terminé
+      _doneTimer[chatId] = setTimeout(() => {
+        const p = _chatProg[chatId];
+        if (p && _dropQueue.filter(t => t.chatId === chatId).length === 0) {
+          runEdit(chatId, true); // message final
+        }
+      }, 2000);
+    }
+
     function enqueueFile(msg, fileId, originalName, mimeType) {
       const chatId = String(msg.chat.id);
       if (!_chatProg[chatId]) _chatProg[chatId] = { msgId: null, total: 0, done: 0, errors: 0, senders: {} };
       _chatProg[chatId].total++;
-      scheduleProgress(chatId);
+      onFileArrived(chatId);
       _dropQueue.push({ msg, fileId, originalName, mimeType, chatId });
       if (!_dropQueueRunning) processDropQueue();
     }
@@ -315,12 +331,7 @@ function startDropBot() {
         console.error('Drop handleFile error:', e.message);
         if (p) p.errors++;
       }
-      // Mise à jour de la barre après chaque fichier (immédiate, pas debounce)
-      if (p) {
-        const prev = _progLock[chatId] || Promise.resolve();
-        const next = prev.then(() => doProgressEdit(chatId));
-        _progLock[chatId] = next.catch(() => {});
-      }
+      if (p) onFileProcessed(chatId);
     }
 
     dropBot.on('document', (msg) => {
